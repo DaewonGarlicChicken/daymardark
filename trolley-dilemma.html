@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 004 - Trolley Dilemma</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(트롤리 딜레마)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
+
+  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(760px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+
+  /* 손 위 스톱워치 */
+  #stopwatch {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -100%);
+    color: beige;
+    font-family: serif;
+    font-size: 30px;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  제동 장치가 망가진 기차, 누르면 한 명, 누르지 않으면 다섯 명.<br>
+  10초 안에 결정해야 한다. <br>
+  한 명은 수단일까, 아니면 다수를 위해 희생당해야 하는 존재일까.
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<div id="stopwatch">10.00</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./trolley-shape.js"></script>
+<script src="./trolley.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 4 - Trolley dilemma", activeId: 4 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const FOV = 55;
+  const CAMERA_DIST = 60;
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, CAMERA_DIST);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.localClippingEnabled = true; // 제목바 위로 나간 기차를 잘라내기 위해
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  // z=0 평면에서 화면 끝(양옆 벽, 바닥) 위치 = 폭발한 삼각형이 튕기고 멈추는 기준
+  function updateViewBounds() {
+    const halfH = Math.tan((FOV * Math.PI / 180) / 2) * CAMERA_DIST;
+    // 상단 제목바(헤더) 아래 선을 z=0 평면의 y로 변환 -> 선로 끝 / 기차가 빠져나가는 선
+    const bar = document.getElementById('topBar');
+    const barBottomPx = bar ? bar.getBoundingClientRect().bottom + 8 : 0;
+    const topY = halfH * (1 - 2 * barBottomPx / window.innerHeight);
+    setViewBounds_TrolleyDilemma(halfH * camera.aspect, halfH, topY, CAMERA_DIST);
+  }
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    updateViewBounds();
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_TrolleyDilemma(scene, elapsedTime);
+  updateViewBounds();
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남, 카운트다운 시작 ----------
+  let started = false;
+  const introTextEl = document.getElementById('introText');
+  function startMain() {
+    started = true;
+    introTextEl.style.opacity = '0';
+    setTimeout(() => { introTextEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    start_TrolleyDilemma(elapsedTime);
+  }
+
+  // ---------- 손 클릭 / 마우스 오버 ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  function pickAt(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(getPickables_TrolleyDilemma(), false);
+    return hits.length ? hits[0] : null;
+  }
+
+  renderer.domElement.addEventListener('mousemove', (event) => {
+    if (!started || dragging) return;
+    const can = pickAt(event) && isHandClickable_TrolleyDilemma(elapsedTime);
+    renderer.domElement.style.cursor = can ? 'pointer' : 'default';
+  });
+
+  // 좌클릭 드래그 = 공간(0,0,0 중심) 회전, 거의 움직이지 않았으면 클릭(손 누르기)
+  let dragging = false, downValid = false;
+  let downX = 0, downY = 0, lastX = 0, lastY = 0, spaceRotX = 0, spaceRotY = 0;
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    if (!started) { startMain(); return; } // 첫 클릭은 시작에만 사용
+    dragging = true; downValid = true;
+    downX = lastX = event.clientX; downY = lastY = event.clientY;
+  });
+  window.addEventListener('mousemove', (event) => {
+    if (!dragging) return;
+    spaceRotY += (event.clientX - lastX) * 0.006;
+    spaceRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, spaceRotX + (event.clientY - lastY) * 0.006));
+    lastX = event.clientX; lastY = event.clientY;
+    setSpaceRotation_TrolleyDilemma(spaceRotX, spaceRotY);
+  });
+  window.addEventListener('mouseup', (event) => {
+    if (event.button !== 0 || !downValid) return;
+    dragging = false; downValid = false;
+    if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) >= 5) return; // 드래그는 클릭 아님
+    const hit = pickAt(event);
+    if (hit && handleRaycastHit_TrolleyDilemma(hit, elapsedTime)) {
+      renderer.domElement.style.cursor = 'default';
+    }
+  });
+
+  // ---------- 스톱워치 위치 (손 위 3D 지점을 화면 좌표로) ----------
+  const stopwatchEl = document.getElementById('stopwatch');
+  const swVec = new THREE.Vector3();
+  function updateStopwatch() {
+    const sw = getStopwatch_TrolleyDilemma(elapsedTime);
+    stopwatchEl.textContent = sw.text;
+    stopwatchEl.style.opacity = started ? String(sw.opacity) : '0';
+    const root = getRoot_TrolleyDilemma();
+    root.updateMatrixWorld();
+    root.localToWorld(swVec.set(sw.x, sw.y, sw.z)).project(camera); // 공간 회전 반영
+    stopwatchEl.style.left = ((swVec.x + 1) / 2) * window.innerWidth + 'px';
+    stopwatchEl.style.top = ((1 - swVec.y) / 2) * window.innerHeight + 'px';
+  }
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+    updateExperiment_TrolleyDilemma(elapsedTime, deltaTime);
+    updateStopwatch();
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>

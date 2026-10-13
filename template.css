@@ -1,0 +1,117 @@
+/* =========================================================
+   공통 템플릿 스타일
+   - 사고실험 내용(캔버스, 컨트롤 패널 등)은 포함하지 않음
+   - 배경, 기본 서체, 상단 제목바, 목차 사이드바만 담당
+   ========================================================= */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #10131a;
+  font-family: system-ui, sans-serif;
+}
+
+/* ---------- 상단 타이틀 바 ---------- */
+#topBar {
+  position: fixed;
+  top: 26px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #eee;
+  font-family: serif;
+  z-index: 8;
+  pointer-events: none;
+}
+#topBar h1 {
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+  margin: 0 0 16px 0;
+  letter-spacing: 0.02em;
+}
+#topBar hr {
+  border: none;
+  border-top: 1px solid rgba(238, 238, 238, 0.5);
+  margin: 0 auto;
+  width: 70%;
+  max-width: 1140px;
+}
+
+/* ---------- 목차 토글 버튼 ---------- */
+/* 목차 토글 버튼과 사이드바의 처음 화면 버튼은 같은 가로줄(세로 가운데 = 위에서 40px)에 맞춤 */
+#menuToggleBtn {
+  position: fixed;
+  top: 22px;
+  right: 28px;
+  z-index: 20;
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+#menuToggleBtn .glyph { display: inline-block; line-height: 1; }
+/* 닫기(⌄) 표시는 글꼴마다 높이가 달라서 선으로 직접 그림 -> 어느 환경에서나 정확히 가운데 */
+#menuToggleBtn .chevron {
+  width: 11px;
+  height: 11px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-3px) rotate(45deg); /* 회전한 뒤 눈에 보이는 무게중심을 가운데로 */
+}
+
+/* ---------- 목차 사이드바 ---------- */
+#tocSidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  height: 100%;
+  background: rgba(18, 21, 32, 0.93);
+  transform: translateX(100%);
+  transition: transform 0.4s ease;
+  z-index: 15;
+  padding: 92px 34px 32px;
+  box-sizing: border-box;
+  font-family: serif;
+  color: #eee;
+  overflow-y: auto;
+}
+body.menu-open #tocSidebar { transform: translateX(0); }
+
+/* 사이드바 왼쪽 위: index(처음 화면)로 돌아가는 버튼 (목차 토글 버튼과 같은 높이) */
+#tocHome {
+  position: absolute;
+  top: 22px;
+  height: 36px;
+  line-height: 36px;
+  left: 34px;
+  color: beige;
+  font-family: serif;
+  font-size: 17px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+#tocHome:hover { color: #f0c48a; }
+
+.tocItem {
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(238, 238, 238, 0.15);
+  font-size: 17px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+.tocItem:hover { color: #f0c48a; }
+.tocItem.active { color: beige; }
+.tocItem.disabled { color: #777; cursor: default; }
+.tocItem.disabled:hover { color: #777; }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 005 - Infinite Monkey Theorem</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(무한 원숭이 정리)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; }
+
+  /* ---------- 시작 화면 / 본 화면 ---------- */
+  canvas, #panel { opacity: 0; transition: opacity 1.2s ease; }
+  #panel { pointer-events: none; }
+  body.started canvas, body.started #panel { opacity: 1; }
+  body.started #panel { pointer-events: auto; }
+
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(760px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+
+  #panel {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    background: rgba(20, 22, 30, 0.85);
+    color: beige;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    z-index: 10;
+    width: 270px;
+    font-family: serif;
+  }
+  #panel input[type="range"] { width: 100%; margin: 4px 0 8px; accent-color: #e8c25a; }
+  #panel .row { display: flex; justify-content: space-between; }
+  #panel .big { font-size: 15px; }
+  #panel hr { border: none; border-top: 1px solid rgba(245, 245, 220, 0.2); margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  원숭이가 무한한 시간 동안 타자기의 자판을 무작위로 누를 수 있다면,<br>
+  어느 시점에는 셰익스피어 전집을 입력할 수 있다.<br>
+  불가능에 가까워 보이더라도, 가능성이 있다면 그것은 닫힌 결말이 아니다.<br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<div id="panel">
+  <div class="row"><span>타자 속도</span><span id="speedLabel"></span></div>
+  <input id="speedInput" type="range" min="0" max="1000" step="1" />
+  <div class="row"><span>한 칸이 맞을 확률</span><span id="probLabel"></span></div>
+  <div class="row big"><span>이 속도로 문장 완성까지 (평균)</span></div>
+  <div class="row big"><span></span><span id="expectedLabel"></span></div>
+  <hr />
+  <div class="row"><span>경과 시간</span><span id="elapsedLabel"></span></div>
+  <div class="row"><span>지금 칸</span><span id="slotLabel"></span></div>
+  <div class="row"><span>누른 횟수</span><span id="attemptsLabel"></span></div>
+  <div class="row"><span>직전 완성 기록</span><span id="recordLabel">-</span></div>
+</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./monkey.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 5 - Infinite monkey theorem", activeId: 5 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+  // 문장(가로 약 70) 전체가 화면 폭에 들어오도록 카메라 거리 조절
+  function fitCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    const tanH = Math.tan((55 * Math.PI / 180) / 2);
+    const dist = Math.max(36 / tanH, 40 / (tanH * camera.aspect));
+    camera.position.set(0, 0, dist);
+    camera.lookAt(0, 0, 0);
+  }
+  fitCamera();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_InfiniteMonkey(scene, elapsedTime);
+
+  // ---------- 속도 슬라이더 (로그 눈금: 초당 0.5회 ~ 60회) ----------
+  const SPEED_MIN = 0.5, SPEED_MAX = 60, SPEED_DEFAULT = 3.6; // 기본 속도에서 평균 약 30초에 완성
+  const speedInput = document.getElementById('speedInput');
+  const toSpeed = (v) => SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, v / 1000);
+  const toSlider = (s) => Math.round(1000 * Math.log(s / SPEED_MIN) / Math.log(SPEED_MAX / SPEED_MIN));
+  speedInput.value = toSlider(SPEED_DEFAULT);
+  function applySpeed() {
+    const s = toSpeed(Number(speedInput.value));
+    setSpeed_InfiniteMonkey(s);
+    document.getElementById('speedLabel').textContent = (s < 10 ? s.toFixed(1) : Math.round(s)) + '회/초';
+  }
+  speedInput.addEventListener('input', applySpeed);
+  applySpeed();
+
+  function fmtTime(sec) {
+    if (sec === undefined || sec === null || !isFinite(sec)) return '-';
+    sec = Math.max(0, sec);
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+    const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  }
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  let started = false;
+  function isTemplateUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #panel');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    started = true;
+    const introEl = document.getElementById('introText');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    start_InfiniteMonkey(elapsedTime);
+  });
+
+  // ---------- 패널 갱신 ----------
+  const el = (id) => document.getElementById(id);
+  function updatePanel() {
+    const s = getStats_InfiniteMonkey(elapsedTime);
+    el('probLabel').textContent = `1 / ${s.combos}`;
+    el('expectedLabel').textContent = fmtTime(s.expectedSeconds);
+    el('elapsedLabel').textContent = fmtTime(s.elapsed);
+    el('slotLabel').textContent = `${s.slot} / ${s.slots}`;
+    el('attemptsLabel').textContent = `${s.attempts.toLocaleString()}회`;
+    el('recordLabel').textContent = s.lastRecord !== undefined
+      ? `${fmtTime(s.lastRecord)} (${s.completedCount}번째 문장)` : '-';
+  }
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+    updateExperiment_InfiniteMonkey(elapsedTime, deltaTime);
+    updatePanel();
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>

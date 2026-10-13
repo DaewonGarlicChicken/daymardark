@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 007 - Quantum Suicide and Immortality</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(양자 자살과 불멸)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
+
+  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(780px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 17px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+
+  /* 점등 순간 시야가 베이지색으로 덮였다가, 무수한 삼각형이 파도처럼 빠져나가며 갈라짐 */
+  #splitCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  /* 살아남은 이유 (1인칭) */
+  #reason {
+    position: fixed;
+    bottom: 96px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: beige;
+    font-family: serif;
+    font-size: 22px;
+    letter-spacing: 0.05em;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    white-space: nowrap;
+  }
+
+  /* 3인칭: 각 '나' 위에 뜨는 생존 이유 */
+  .figLabel {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    color: beige;
+    font-family: serif;
+    font-size: 15px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  #modeBtn {
+    position: fixed;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    padding: 8px 18px;
+    border: 1px solid rgba(245, 245, 220, 0.5);
+    background: rgba(20, 22, 30, 0.75);
+    color: beige;
+    font-family: serif;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease, background 0.2s ease;
+  }
+  body.started #modeBtn { opacity: 1; pointer-events: auto; }
+  #modeBtn:hover { background: rgba(60, 62, 75, 0.85); }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  다세계 해석의 모든 경우의 수로 시간 선이 쪼개진다는 가설로 추론된 사고 실험으로 양자적 자살과 불멸이 있다.
+  만약 자살자가 머리에 장전된 총을 겨누고 방아쇠를 당겼다고 가정했을 때,
+  대체로 총은 발사되고 자살자는 죽을 가능성이 높다.<br>
+  <br>
+  그러나 총이나 총알이 망가져 발사되지 않을 가능성 역시 어떻게든 존재하고,
+  설사 총알이 발사된다고 해도 생존할 가능성 역시 존재한다.
+  이러한 경우의 수(단위: 입자적 수준)가 무한대로 쪼개지다 보면
+  방아쇠를 몇 번을 당기든 간에 자살자가 생존하는 경우의 수는 계속적으로 생겨나며,
+  자살자의 의식은 그가 생존한 시간 선 위에서 계속 불멸한다고 보는 개념이다.<br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<canvas id="splitCanvas"></canvas>
+<div id="reason"></div>
+<div id="labels"></div>
+<button id="modeBtn">모든 분기 기점</button>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./quantum.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 7 - Quantum suicide and immortality", activeId: 7 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_Quantum(scene, elapsedTime);
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 1인칭으로 시작 ----------
+  let started = false;
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #modeBtn');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isUi(event.target) || event.button !== 0) return;
+    started = true;
+    const introEl = document.getElementById('introText');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    start_Quantum(elapsedTime);
+  });
+
+  // ---------- 시점 전환 버튼 ----------
+  const modeBtn = document.getElementById('modeBtn');
+  const reasonEl = document.getElementById('reason');
+  modeBtn.addEventListener('click', () => {
+    const toThird = getMode_Quantum() === 'first';
+    setMode_Quantum(toThird ? 'third' : 'first', elapsedTime);
+    modeBtn.textContent = toThird ? '나의 시점' : '모든 분기 기점';
+    if (toThird) reasonEl.style.opacity = '0';
+  });
+
+  // ---------- 1인칭 점등: 시야가 베이지색으로 덮였다가 삼각형 파도로 빠져나감 + 살아남은 이유 ----------
+  const splitCanvas = document.getElementById('splitCanvas');
+  const sctx = splitCanvas.getContext('2d');
+  const WAVE = {
+    triSize: 34,        // 화면을 덮는 삼각형 한 변(px)
+    hold: 0.12,         // 완전히 덮인 채 머무는 시간
+    spread: 0.5,        // 가운데에서 가장자리까지 빠져나가는 데 걸리는 시간 차
+    each: 0.55,         // 삼각형 하나가 빠져나가는 시간
+    drift: 140,         // 바깥쪽으로 밀려나는 거리(px)
+    color: [245, 245, 220], // CSS의 beige
+  };
+  let waveTris = [], waveStart = -1;
+  function buildWave() {
+    const W = window.innerWidth, H = window.innerHeight;
+    splitCanvas.width = W; splitCanvas.height = H;
+    const s = WAVE.triSize, h = s * Math.sqrt(3) / 2;
+    waveTris = [];
+    for (let row = -1; row * h < H + h; row++) {
+      for (let col = -2; col * (s / 2) < W + s; col++) {
+        const up = (row + col) % 2 === 0;
+        const x = col * (s / 2), y = row * h;
+        const pts = up ? [[x, y + h], [x + s / 2, y], [x + s, y + h]] : [[x, y], [x + s, y], [x + s / 2, y + h]];
+        const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3, cy = (pts[0][1] + pts[1][1] + pts[2][1]) / 3;
+        const dist = Math.abs(cx - W / 2) / (W / 2);           // 가운데일수록 먼저 빠짐
+        waveTris.push({ pts, cx, cy, side: cx < W / 2 ? -1 : 1,
+          delay: dist * WAVE.spread + Math.random() * 0.08 + Math.sin(cy * 0.012) * 0.04,
+          wob: Math.random() * Math.PI * 2 });
+      }
+    }
+  }
+  function drawWave(now) {
+    sctx.clearRect(0, 0, splitCanvas.width, splitCanvas.height);
+    if (waveStart < 0) return;
+    const t = (now - waveStart) / 1000;
+    const [r, g, b] = WAVE.color;
+    let alive = false;
+    for (const tr of waveTris) {
+      const p = Math.min(1, Math.max(0, (t - WAVE.hold - tr.delay) / WAVE.each));
+      if (p >= 1) continue;
+      alive = true;
+      const e = p * p;                                       // 점점 빨라지며 빠져나감
+      const k = 1 - e;                                       // 작아짐
+      const dx = tr.side * e * WAVE.drift, dy = Math.sin(tr.wob + e * 3) * e * 18;
+      sctx.fillStyle = `rgba(${r},${g},${b},${1 - e * 0.85})`;
+      sctx.beginPath();
+      tr.pts.forEach(([x, y], i) => {
+        const px = tr.cx + (x - tr.cx) * k + dx, py = tr.cy + (y - tr.cy) * k + dy;
+        i ? sctx.lineTo(px, py) : sctx.moveTo(px, py);
+      });
+      sctx.closePath();
+      sctx.fill();
+    }
+    if (!alive) waveStart = -1;
+  }
+  buildWave();
+  window.addEventListener('resize', buildWave);
+
+  let reasonTimer = null;
+  function flash(reason) {
+    waveStart = performance.now();
+    clearTimeout(reasonTimer);
+    reasonEl.style.opacity = '0';
+    setTimeout(() => {
+      if (getMode_Quantum() !== 'first') return;
+      reasonEl.textContent = reason;
+      reasonEl.style.opacity = '1';
+      reasonTimer = setTimeout(() => { reasonEl.style.opacity = '0'; }, 2200);
+    }, 450);
+  }
+
+  // ---------- 3인칭: 각 '나' 위의 생존 이유 ----------
+  const labelsEl = document.getElementById('labels');
+  const labelEls = [];
+  const v = new THREE.Vector3();
+  function updateLabels() {
+    const labels = getLabels_Quantum();
+    while (labelEls.length < labels.length) {
+      const d = document.createElement('div'); d.className = 'figLabel'; labelsEl.appendChild(d); labelEls.push(d);
+    }
+    labelEls.forEach((el, i) => {
+      const l = labels[i];
+      if (!l || l.opacity <= 0.01) { el.style.opacity = '0'; return; }
+      v.set(l.x, l.y, l.z).project(camera);
+      el.textContent = l.text;
+      el.style.left = ((v.x + 1) / 2) * window.innerWidth + 'px';
+      el.style.top = ((1 - v.y) / 2) * window.innerHeight + 'px';
+      el.style.opacity = String(l.opacity);
+    });
+  }
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+    updateExperiment_Quantum(elapsedTime, deltaTime);
+    popEvents_Quantum().forEach((e) => { if (e.type === 'flash') flash(e.reason); });
+
+    const cam = getCamera_Quantum(elapsedTime);
+    camera.position.set(cam.px, cam.py, cam.pz);
+    camera.lookAt(cam.lx, cam.ly, cam.lz);
+    updateLabels();
+    renderer.render(scene, camera);
+    drawWave(performance.now());
+  }
+  animate();
+</script>
+</body>
+</html>

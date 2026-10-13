@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 003 - The Chinese Room</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(중국어 방)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
+
+  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(760px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+
+  #caption {
+    position: fixed;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: beige;
+    font-family: serif;
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  body.started #caption { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  중국어를 전혀 모르는 사람이 방에 들어간다.<br>
+  그에게 중국어를 전달해주면 그는 중국어의 모양만을 보고<br>
+  규칙집에 적힌 규칙을 따라 답을 출력한다.<br>
+  밖에서 보면 마치 중국어를 아는 것 처럼 보인다.<br>
+  뜻은 모른 채 시각적 형태와 그 계산에만 따른다면, 기호를 이해했다고 할 수 있을까. <br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<div id="caption"></div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./chinese-room-shape.js"></script>
+<script src="./chinese-room.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 3 - the Chinese room argument", activeId: 3 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const FOV = 55;
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  // 화면 비율에 맞춰 트라이포드 열 ~ 나무 끝이 모두 보이도록 카메라 배치
+  function fitCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    const fit = getCameraFit_ChineseRoom(camera.aspect, FOV);
+    camera.position.set(fit.x, fit.y, fit.z);
+    camera.lookAt(fit.x, fit.y, 0);
+  }
+  fitCamera();
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+
+  // ---------- 클릭(트라이포드 선택) / 마우스 오버 ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const captionEl = document.getElementById('caption');
+
+  function pickAt(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(getPickables_ChineseRoom(), false);
+    return hits.length ? hits[0] : null;
+  }
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  let started = false;
+  const introTextEl = document.getElementById('introText');
+  function startMain() {
+    started = true;
+    introTextEl.style.opacity = '0';
+    setTimeout(() => { introTextEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+  }
+
+  renderer.domElement.addEventListener('mousemove', (event) => {
+    if (!started) return;
+    const hit = pickAt(event);
+    const canPick = hit && !isBusy_ChineseRoom();
+    setHover_ChineseRoom(canPick ? hit.object : null);
+    renderer.domElement.style.cursor = canPick ? 'pointer' : 'default';
+  });
+  renderer.domElement.addEventListener('mouseleave', () => setHover_ChineseRoom(null));
+
+  // 좌클릭 드래그 = 눈 구조물(0,0,0 중심) 회전, 거의 움직이지 않았으면 클릭
+  let downX = 0, downY = 0, downValid = false;
+  let dragging = false, lastX = 0, lastY = 0, spaceRotX = 0, spaceRotY = 0;
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    if (!started) { startMain(); return; } // 첫 클릭은 시작에만 사용 (트라이포드 선택/회전 X)
+    downX = event.clientX; downY = event.clientY; downValid = true;
+    dragging = true; lastX = event.clientX; lastY = event.clientY;
+  });
+  window.addEventListener('mousemove', (event) => {
+    if (!dragging) return;
+    spaceRotY += (event.clientX - lastX) * 0.006;
+    spaceRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, spaceRotX + (event.clientY - lastY) * 0.006));
+    lastX = event.clientX; lastY = event.clientY;
+    setSpaceRotation_ChineseRoom(spaceRotX, spaceRotY);
+  });
+  window.addEventListener('mouseup', (event) => {
+    if (event.button !== 0 || !downValid) return;
+    downValid = false;
+    dragging = false;
+    if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) >= 5) return; // 드래그는 무시
+    const hit = pickAt(event);
+    if (hit) handleRaycastHit_ChineseRoom(hit, elapsedTime);
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_ChineseRoom(scene, elapsedTime);
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+
+    updateExperiment_ChineseRoom(elapsedTime, deltaTime);
+    captionEl.textContent = getStatus_ChineseRoom(elapsedTime).caption;
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>

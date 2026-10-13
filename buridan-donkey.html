@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 006 - Buridan's Donkey</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(뷔리당의 당나귀)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
+
+  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(760px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  어떤 배고프고 목마른 당나귀가 있다.<br>
+  그 앞에는 동일한 만족을 주는 건초 묶음과 물 동이가 놓여져 있다.<br>
+  하지만 그 당나귀가 최선을 선택하는 이성적 판단만을 가지고 있다고 한다면,<br>
+  그 당나귀는 어떤 것도 포기할 수 없고 어떤 것도 선택할 수 없어서 죽게 될 것이다.<br>
+  이유가 있어야만 선택하는 것은, 우리를 당나귀로 만드는 것일까.<br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./buridan-shape.js"></script>
+<script src="./buridan.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 6 - Buridan's donkey", activeId: 6 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const FOV = 55;
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+  // 건초 더미(왼쪽) ~ 물 더미(오른쪽)가 모두 보이도록, 살짝 위에서 내려다보는 구도
+  function fitCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    const tanH = Math.tan((FOV * Math.PI / 180) / 2);
+    const dist = Math.max(19 / tanH, 36 / (tanH * camera.aspect));
+    camera.position.set(0, 5 + dist * 0.2, dist);
+    camera.lookAt(0, 5, 0);
+  }
+  fitCamera();
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_BuridanDonkey(scene, elapsedTime);
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 (당나귀의 20초가 시작) ----------
+  let started = false;
+  function isTemplateUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    started = true;
+    const introEl = document.getElementById('introText');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    start_BuridanDonkey(elapsedTime);
+  });
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+    updateExperiment_BuridanDonkey(elapsedTime, deltaTime);
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>

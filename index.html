@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>이상한 사고실험실</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    background: #10131a;
+    font-family: system-ui, sans-serif;
+  }
+  #title {
+    font-style: italic; 
+    color: beige;
+    text-align: center;
+    font-family: serif;
+    position: absolute;
+    top: 10%;
+    align-self: center;
+  
+  }
+  /* 제목 아래 문구들(부제 + 목록)은 화면 위에서 32% 지점부터 시작해 아래로 이어짐 */
+  #content {
+    position: absolute;
+    top: 32%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .subtitle {
+    font-style: italic; 
+    color: beige;
+    text-align: center;
+    font-size: 10pt;
+    font-family: serif;
+    font-weight: lighter;
+    margin: 0 0 14px 0;
+  }
+  #loading {
+    color: beige;
+    opacity: 0.3;
+    animation: blink 1s infinite;
+    text-align: center;
+    margin-top: 30px;
+  }
+  @keyframes blink {
+    50% { opacity: 1; }
+  }
+
+  #expList {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: 30px;
+    font-family: serif;
+  }
+  #expList a, #expList span.disabledItem {
+    color: beige;
+    text-decoration: none;
+    font-style: italic;
+    font-size: 14pt;
+    letter-spacing: 0.02em;
+    transition: opacity 0.2s ease;
+  }
+  #expList a:hover { opacity: 0.6; }
+  #expList span.disabledItem {
+    color: #6c6a63;
+    cursor: default;
+  }
+</style>
+<script>
+  setTimeout(() => {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('expList').style.display = 'flex';
+  }, 2000);
+</script>
+
+
+
+<body>
+  <h1 id="title">이상한 사고실험실</h1>
+  <div id="content">
+    <h1 class="subtitle">사고실험, 지식의 허영심을 드러내기에 좋은 요소.</h1>
+    <h1 class="subtitle">이미지의 이해, 구상, 발현, 개시.</h1>
+    <span id="loading">불러오는 중 . . .</span>
+    <div id="expList"></div>
+  </div>
+
+  <!-- 사고실험 목록(THOUGHT_EXPERIMENTS)을 목차와 공유하기 위해 template.js를 불러옴 -->
+  <script src="./template.js"></script>
+  <script>
+    const expListEl = document.getElementById('expList');
+    THOUGHT_EXPERIMENTS.forEach((exp) => {
+      if (exp.href) {
+        const a = document.createElement('a');
+        a.href = exp.href;
+        a.textContent = exp.title;
+        expListEl.appendChild(a);
+      } else {
+        const span = document.createElement('span');
+        span.className = 'disabledItem';
+        span.textContent = exp.title;
+        expListEl.appendChild(span);
+      }
+    });
+  </script>
+</body>
+</html>

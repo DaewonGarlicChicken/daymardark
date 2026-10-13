@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 001 - Theseus's Ship</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  canvas { display: block; }
+
+  /* ---------- 시작 화면 / 본 화면 ----------
+     시작 전: 문구만 보임. 화면을 클릭하면 문구가 사라지고 본 화면(캔버스, 패널)이 나타남 */
+  canvas, #panel { opacity: 0; transition: opacity 1.2s ease; }
+  #panel { pointer-events: none; }
+  body.started canvas, body.started #panel { opacity: 1; }
+  body.started #panel { pointer-events: auto; }
+
+  #panel {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    background: rgba(20, 22, 30, 0.85);
+    color: beige;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    z-index: 10;
+    max-width: 320px;
+  }
+  #panel label { display: block; margin-bottom: 6px; font-family: serif;}
+  #panel input[type="color"] {
+    width: 48px; height: 28px; border: none; padding: 0; vertical-align: middle; cursor: pointer;
+  }
+  #panel button {
+    margin-top: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border: 1px solid #555;
+    background: #2a2d38;
+    color: beige;
+    border-radius: 6px;
+    font-family: serif;
+  }
+  #panel button:hover { background: #3a3e4d; }
+  #status { margin-top: 8px; color: beige; font-family: serif;}
+
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 18px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  테세우스의 배가 있다. 판자가 고장나고,<br>
+  그는 배를 수리하기 위해 판자를 갈아끼운다.<br>
+  그렇게 원래 있던 판자가 전부 교체되었다.<br>
+  원래의 '나'라고 부를 수 있는 기준은 무엇일까.<br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<div id="panel">
+  <label>갤리선 색상: <input id="colorInput" type="color" value="#dd8844" /></label>
+  <button id="startBtn">새로운 갤리선을 부른다</button>
+  <div id="status"></div>
+</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 -->
+<script src="./theseus-galley.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 1 - Theseus's Ship", activeId: 1 });
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  // 첫 클릭은 시작에만 쓰이고, 아래의 클릭/드래그/휠 동작으로는 전달되지 않음
+  let started = false;
+  let swallowMouseUp = false;
+  function isTemplateUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isTemplateUi(event.target)) return;
+    event.stopImmediatePropagation();
+    if (event.button !== 0) return;
+    started = true;
+    swallowMouseUp = true;
+    const introEl = document.getElementById('introText');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+  }, true);
+  window.addEventListener('mouseup', (event) => {
+    if (!swallowMouseUp) return;
+    swallowMouseUp = false;
+    event.stopImmediatePropagation();
+  }, true);
+  window.addEventListener('wheel', (event) => {
+    if (!started) event.stopImmediatePropagation();
+  }, true);
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 33, 130);
+  camera.lookAt(0, 3, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ---------- 클릭 / 드래그(배 회전) / 휠(줌) 연동 ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+
+  function handleShipClick(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(getRaycastTargets_TheseusGalley());
+    if (hits.length > 0) {
+      handleRaycastHit_TheseusGalley(hits[0], elapsedTime);
+    }
+  }
+
+  // 좌클릭 드래그 = 배 회전, 거의 움직이지 않았으면 클릭(수리)으로 처리
+  let isDragging = false;
+  let dragDistanceAccum = 0;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  let shipRotY = 0;
+  let shipRotX = 0;
+  let rotationResetAnim = null; // { startY, startX, startTime, duration }
+  const CLICK_DRAG_THRESHOLD = 5; // 픽셀. 이보다 적게 움직이면 클릭으로 취급
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return; // 좌클릭만
+    rotationResetAnim = null; // 사용자가 다시 잡으면 자동 복귀 애니메이션은 취소
+    isDragging = true;
+    dragDistanceAccum = 0;
+    lastPointerX = event.clientX;
+    lastPointerY = event.clientY;
+  });
+
+  window.addEventListener('mousemove', (event) => {
+    if (!isDragging) return;
+    const dx = event.clientX - lastPointerX;
+    const dy = event.clientY - lastPointerY;
+    dragDistanceAccum += Math.abs(dx) + Math.abs(dy);
+
+    shipRotY += dx * 0.006;
+    shipRotX += dy * 0.006;
+    shipRotX = Math.max(-0.6, Math.min(0.6, shipRotX)); // 너무 뒤집히지 않게 제한
+
+    const root = getShipRoot_TheseusGalley();
+    if (root) {
+      root.rotation.y = shipRotY;
+      root.rotation.x = shipRotX;
+    }
+
+    lastPointerX = event.clientX;
+    lastPointerY = event.clientY;
+  });
+
+  window.addEventListener('mouseup', (event) => {
+    if (event.button !== 0) return;
+    if (isDragging && dragDistanceAccum < CLICK_DRAG_THRESHOLD) {
+      handleShipClick(event); // 드래그가 거의 없었으면 클릭(수리)으로 처리
+    }
+    isDragging = false;
+  });
+
+  // 마우스 휠 = 카메라 줌 (배 자체를 확대해서 보는 효과)
+  const ZOOM_TARGET = new THREE.Vector3(0, 3, 0);
+  const ZOOM_MIN_DIST = 35;
+  const ZOOM_MAX_DIST = 420;
+
+  renderer.domElement.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const offset = camera.position.clone().sub(ZOOM_TARGET);
+    const factor = 1 + event.deltaY * 0.001;
+    let dist = offset.length() * factor;
+    dist = Math.max(ZOOM_MIN_DIST, Math.min(ZOOM_MAX_DIST, dist));
+    offset.setLength(dist);
+    camera.position.copy(ZOOM_TARGET).add(offset);
+    camera.lookAt(ZOOM_TARGET);
+  }, { passive: false });
+
+  // ---------- 색 지정 UI ----------
+  const colorInput = document.getElementById('colorInput');
+  const startBtn = document.getElementById('startBtn');
+  const statusEl = document.getElementById('status');
+  const introTextEl = document.getElementById('introText');
+
+  let firstSummonDone = false;
+  function startNewShip() {
+    const hex = parseInt(colorInput.value.replace('#', '0x'));
+    setColor_TheseusGalley(hex, elapsedTime);
+    firstSummonDone = true;
+
+    // 화면 중앙 문구는 서서히 사라지고 배가 등장
+    introTextEl.style.opacity = '0';
+    setTimeout(() => { introTextEl.style.display = 'none'; }, 650);
+
+    statusEl.textContent = '운항 중...';
+  }
+  startBtn.addEventListener('click', startNewShip);
+
+  THESEUS_GALLEY_CONFIG.onShipDeparted = () => {
+    statusEl.textContent = '배가 떠났습니다. 새 색을 고르고 버튼을 눌러주세요.';
+  };
+
+  THESEUS_GALLEY_CONFIG.onLeavingStart = () => {
+    // 사용자가 드래그로 돌려놨을 수 있는 회전을, 진입 때 구도(정면)로 부드럽게 복귀시킴
+    rotationResetAnim = {
+      startY: shipRotY,
+      startX: shipRotX,
+      startTime: elapsedTime,
+      duration: 0.9,
+    };
+  };
+
+  // ---------- 화면 계산 ----------
+  function getViewHalfWidthAtZ0(cam) {
+    const vFOV = (cam.fov * Math.PI) / 180;
+    const heightHalf = Math.tan(vFOV / 2) * cam.position.z;
+    return heightHalf * cam.aspect;
+  }
+
+  // ---------- 씬 등록만 (배 소환은 버튼 클릭 시) ----------
+  setScene_TheseusGalley(scene);
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta();
+    elapsedTime += deltaTime;
+    try {
+      updateExperiment_TheseusGalley(elapsedTime, deltaTime, getViewHalfWidthAtZ0(camera));
+
+      if (rotationResetAnim) {
+        const t = Math.min(1, (elapsedTime - rotationResetAnim.startTime) / rotationResetAnim.duration);
+        const eased = easeOutCubic(t);
+        shipRotY = rotationResetAnim.startY * (1 - eased);
+        shipRotX = rotationResetAnim.startX * (1 - eased);
+        const root = getShipRoot_TheseusGalley();
+        if (root) {
+          root.rotation.y = shipRotY;
+          root.rotation.x = shipRotX;
+        }
+        if (t >= 1) {
+          shipRotY = 0;
+          shipRotX = 0;
+          rotationResetAnim = null;
+        }
+      }
+    } catch (err) {
+      statusEl.textContent = '오류 발생: ' + err.message;
+      console.error(err);
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+
+</body>
+</html>

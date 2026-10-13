@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment 008 - Maxwell's Demon</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(맥스웰의 악마)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
+
+  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
+  #introText {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(800px, 86vw);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    font-size: 17px;
+    line-height: 1.9;
+    z-index: 5;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+    word-break: keep-all;
+  }
+</style>
+</head>
+<body>
+
+<div id="introText">
+  두 종류의 기체의 혼합물로 차있는 고립된 방의 가운데 벽이 있어 두 공간으로 나누어져있다고 생각하자.
+  이 벽에는 문이 하나 있어서 악마가 방 밖에서 이 문을 열고 닫을 수 있다.<br>
+  <br>
+  악마가 원하는 것은 이 두 종류의 기체 분자를 양쪽 공간으로 분리하는 것인데,
+  악마스럽게 뛰어난 피지컬을 갖추고 있어서 분자 하나하나마다 문으로 다가오는 것을 확인할 수 있다.
+  따라서 문을 적당히 열고 닫는 것을 통해서 느린 분자는 왼쪽으로, 빠른 분자는 오른쪽으로 보내는 것이 가능하다.
+  시간이 지나면 느린 분자와 빠른 분자가 서로 분리되고,
+  초기상태에 비해 엔트로피가 감소했으므로 열역학 제2법칙을 위배하게 된다.<br>
+  <br>
+  (화면을 클릭하면 시작합니다)
+</div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차) -->
+<script src="./template.js"></script>
+
+<!-- 함수 파일 (뇌 모양은 볼츠만 두뇌의 형태 함수를 함께 씀) -->
+<script src="./boltzmann-brain-shape.js"></script>
+<script src="./maxwell.js"></script>
+
+<script>
+  initPageTemplate({ title: "Thought Experiment 0 0 8 - Maxwell's Demon", activeId: 8 });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const FOV = 55;
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+  // 정면 구도: 방과 그 위의 뇌를 한 덩어리로 보고, 제목바 선 아래 남은 화면의 가운데에 정렬.
+  // 화면 비율(가로로 길든 세로로 길든)에 맞춰, 방의 앞면(원근으로 더 크게 보임)까지 여유 있게 들어오는 거리를 찾음
+  const FILL_W = 0.55;   // 방 앞면이 화면 가로에서 차지하는 최대 비율 (작을수록 작게 보임)
+  const FILL_H = 0.8;    // 방+뇌가 제목바 아래 남은 높이에서 차지하는 최대 비율
+  function fitCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    const tanH = Math.tan((FOV * Math.PI / 180) / 2);
+    const bar = document.getElementById('topBar');
+    const f = bar ? (bar.getBoundingClientRect().bottom + 8) / window.innerHeight : 0.09; // 제목바 선의 화면 위치(비율)
+    const L = getLayout_MaxwellDemon();
+    const contentH = L.top - L.bottom, contentMid = (L.top + L.bottom) / 2;
+    let hh = 4, dist = 1;
+    for (; hh < 120; hh += 0.05) {
+      dist = hh / tanH;
+      const k = dist / (dist - L.hz);            // 앞면이 확대되어 보이는 비율
+      if (L.hx * k <= hh * camera.aspect * FILL_W && contentH * k <= 2 * hh * (1 - f) * FILL_H) break;
+    }
+    // 덩어리의 가운데가 "제목바 선 ~ 화면 아래" 영역의 가운데(화면 좌표 -f)에 오도록
+    const cy = contentMid + f * hh;
+    camera.position.set(0, cy, dist);
+    camera.lookAt(0, cy, 0);
+    setView_MaxwellDemon({ camY: cy, camDist: dist, topY: cy + hh * (1 - 2 * f), halfW: hh * camera.aspect, halfH: hh });
+  }
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.localClippingEnabled = true; // 제목바 선 위로 넘어가는 조각/열 입자를 잘라냄
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+
+  // ---------- 초기화 ----------
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_MaxwellDemon(scene, elapsedTime);
+  fitCamera();
+
+  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  let started = false;
+  function isTemplateUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    started = true;
+    const introEl = document.getElementById('introText');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    start_MaxwellDemon(elapsedTime);
+  });
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
+    elapsedTime += deltaTime;
+    updateExperiment_MaxwellDemon(elapsedTime, deltaTime);
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>
