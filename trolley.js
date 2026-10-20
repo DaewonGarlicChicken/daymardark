@@ -3,40 +3,63 @@
 // -----------------------------------------------------------
 // 필요: Three.js(전역 THREE), trolley-shape.js
 //
-// 흐름
-//  ready   : 손 위 스톱워치가 10.00초부터 거꾸로 셈
+// 게임: 6번의 선택. 매번 왼쪽(1명)과 오른쪽(N명)에 누가 있는지 조건이 주어지고,
+//       기차가 오기 전 5초 안에 살릴 쪽을 고른다.
+//  - 손가락 끝이 마우스 커서를 가리키며 따라감
+//  - 화면 가운데를 기준으로 왼쪽 공간을 누름 -> 왼쪽을 살림 (오른쪽 희생)
+//    오른쪽 공간을 누름 -> 오른쪽을 살림 (왼쪽 희생)
+//    아무것도 하지 않음 -> 5초가 지나면 기차는 원래 선로(오른쪽)로 감 (선택하지 않음으로 기록)
+//  - 6번을 모두 고르면 목표 완료
+//
+// 흐름 (한 번의 선택)
+//  ready   : 손 위 스톱워치가 5.00초부터 거꾸로 셈
 //  손 클릭  : 검지가 굽으며 손이 내려감 -> 2초 뒤 왼쪽 1개 트라이포드가 폭발, 오른쪽 5개는 사라짐
 //  시간 초과: 오른쪽 5개 트라이포드가 폭발, 왼쪽 1개는 사라짐
 //  explode : 작은 삼각형 400개가 중력을 받으며 날아감 (양옆 벽에 튕기고 바닥에 닿으면 멈춤)
 //  gather  : 모두 멈추면 가운데로 모여 세로 선로가 됨 (손보다 아래에 깔림)
 //  morph   : 손이 위에서 본 기차로 변신
 //  depart  : 기차가 선로를 타고 위로 퇴장
-//  clear   : 선로가 사라짐 -> 손과 트라이포드가 다시 나타나고 처음부터 반복
+//  clear   : 선로가 사라짐 -> 다음 조건으로 손과 트라이포드가 다시 나타남 (6번째 뒤에는 finished)
 //
 // 공개 함수
 //  initExperiment_TrolleyDilemma(scene, time)
 //  setViewBounds_TrolleyDilemma(halfW, halfH, topY, camDist) -> z=0 평면의 화면 절반 크기, 제목바 선 높이
 //  start_TrolleyDilemma(time)                   -> 본 화면 시작 (카운트다운 시작)
 //  updateExperiment_TrolleyDilemma(time, deltaTime)
-//  getPickables_TrolleyDilemma() / handleRaycastHit_TrolleyDilemma(hit, time)
-//  getStopwatch_TrolleyDilemma(time) -> { text, opacity, x, y, z }  (좌표는 tdRoot 기준)
-//  setSpaceRotation_TrolleyDilemma(rotX, rotY) / getRoot_TrolleyDilemma()
+//  choose_TrolleyDilemma(side, time)  -> 'left' | 'right' 공간을 누름 (고를 수 있을 때만 true)
+//  setAim_TrolleyDilemma(ndcX, ndcY)  -> 마우스 위치(화면 정규 좌표): 손가락이 그쪽을 가리킴
+//  setHoverSide_TrolleyDilemma(side|null)
+//  getStopwatch_TrolleyDilemma(time) -> { text, opacity, x, y, z }  (좌표는 tdSpace 기준)
+//  getRoot_TrolleyDilemma()
+//  getGame_TrolleyDilemma(time) -> 현재 조건/남은 시간/지금까지의 선택
+//  getLabelAnchors_TrolleyDilemma() -> 왼쪽/오른쪽 무리 아래 이름표 자리 (월드 좌표)
+//  resetGame_TrolleyDilemma(time)
 // =========================================================
 
 const TD_TIMING = {
-  countdown: 10,        // 스톱워치 시작값(초)
-  pressBend: 0.6,       // 검지가 굽고 손이 내려가는 시간
-  pressToExplode: 2.0,  // 손을 누른 뒤 폭발까지
+  countdown: 5,         // 스톱워치 시작값(초) = 고르는 제한 시간
+  pressBend: 0.5,       // 검지가 굽고 손이 내려가는 시간
+  pressToExplode: 1.1,  // 손을 누른 뒤 폭발까지
   vanish: 0.5,          // 폭발하지 않는 쪽 트라이포드가 사라지는 시간
-  explodeMax: 9,        // 안전장치: 이 시간이 지나면 남은 삼각형도 멈춘 것으로 처리
-  gatherDelayMax: 0.8,  // 선로로 모일 때 삼각형마다 출발이 늦어지는 최대 시간
-  gatherDuration: 1.4,
-  morphDelay: 0.4,      // 선로가 다 깔리고 손이 기차로 변하기 시작할 때까지
-  morph: 1.6,
-  trainAccel: 16,       // 기차 가속도 (단위/초²)
-  trackFade: 0.8,
-  appear: 0.8,          // 손과 트라이포드가 다시 나타나는 시간
+  explodeMax: 4,        // 안전장치: 이 시간이 지나면 남은 삼각형도 멈춘 것으로 처리
+  gatherDelayMax: 0.5,  // 선로로 모일 때 삼각형마다 출발이 늦어지는 최대 시간
+  gatherDuration: 1.0,
+  morphDelay: 0.2,      // 선로가 다 깔리고 손이 기차로 변하기 시작할 때까지
+  morph: 1.1,
+  trainAccel: 24,       // 기차 가속도 (단위/초²)
+  trackFade: 0.5,
+  appear: 0.6,          // 손과 트라이포드가 다시 나타나는 시간
 };
+
+// 6번의 선택 조건 (left = 1명 쪽, right = 여러 명 쪽, rightCount = 오른쪽 트라이포드 수)
+const TD_ROUNDS = [
+  { left: '연쇄살인마 1명', right: '절도범 5명', rightCount: 5 },
+  { left: '아기 1명', right: '가정의 가장 3명', rightCount: 3 },
+  { left: '나 1명', right: '일반인 2명', rightCount: 2 },
+  { left: '일반인 1명', right: '노인 5명', rightCount: 5 },
+  { left: '아이돌 1명', right: '아이돌 연습생 3명', rightCount: 3 },
+  { left: '응급환자 1명', right: '장기이식 대기자 5명', rightCount: 5 },
+];
 
 const TD_LAYOUT = {
   handScale: 1.3,
@@ -44,7 +67,7 @@ const TD_LAYOUT = {
   handRotY: -0.05,
   handYFrac: 0,         // 화면 높이 기준 손 위치 (0 = 화면 한가운데, 원점)
   handDrop: 3.5,        // 누를 때 내려가는 거리
-  tripodYFrac: 0.62,
+  tripodYFrac: 0,       // 선택지(트라이포드 무리)는 화면 상하 가운데
   tripodXFrac: 0.55,
   fiveSpacing: 4.6,
   gravity: 38,
@@ -53,6 +76,9 @@ const TD_LAYOUT = {
   sleeperSpacing: 2.6,
   sleeperTriangles: 5,
   stopwatchGap: 2.5,
+  aimYaw: 0.75,         // 커서가 화면 끝에 있을 때 손이 좌우로 도는 최대 각도(라디안)
+  aimPitch: 0.6,        // 위아래 최대 각도
+  aimFollow: 10,        // 따라가는 빠르기
 };
 
 const TD_COLORS = {
@@ -63,13 +89,16 @@ const TD_COLORS = {
 };
 
 let tdRoot = null;
-let tdSpace = null;   // 드래그로 회전하는 공간: 손/기차 + 폭발 삼각형/선로 (상단 트라이포드는 제외)
+let tdSpace = null;   // 손/기차 + 폭발 삼각형/선로를 담는 공간 (상단 트라이포드는 제외)
 let tdBounds = { halfW: 50, halfH: 30, topY: 30, camDist: 60 };
 let tdClipPlane = null; // 제목바 위로는 기차가 보이지 않게 자르는 평면
 let tdHand = null;
 let tdTripods = [];
 let tdParticles = null;
 let tdState = { phase: 'waiting' };
+let tdGame = { round: 0, choices: [] }; // choices: { saved: 'left'|'right', timeout }
+let tdAim = { x: 0, y: 0, yaw: 0, pitch: 0 }; // 커서 방향 / 지금 손이 향한 각도
+let tdHoverSide = null;
 
 function tdClamp01(x) { return Math.min(1, Math.max(0, x)); }
 function tdSmooth(x) { x = tdClamp01(x); return x * x * (3 - 2 * x); }
@@ -113,6 +142,7 @@ function setViewBounds_TrolleyDilemma(halfW, halfH, topY, camDist) {
 }
 
 // 좌클릭 드래그: 공간을 원점(0,0,0) 기준으로 회전 (양쪽 상단 트라이포드는 고정)
+// (드래그 회전은 게임 버전에서 쓰지 않음)
 function setSpaceRotation_TrolleyDilemma(rotX, rotY) {
   if (!tdSpace) return;
   tdSpace.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
@@ -128,10 +158,12 @@ function tdApplyLayout() {
   const y = tdBounds.halfH * L.tripodYFrac;
   const lx = -tdBounds.halfW * L.tripodXFrac;
   const rx = tdBounds.halfW * L.tripodXFrac;
+  const n = tdRightCount();
   tdTripods.forEach((t) => {
-    t.homeX = t.side === 'left' ? lx : rx + (t.slot - 2) * L.fiveSpacing;
+    t.homeX = t.side === 'left' ? lx : rx + (t.slot - (n - 1) / 2) * L.fiveSpacing;
     t.homeY = y;
   });
+
   const p = tdState.phase;
   if (p === 'waiting' || p === 'ready') {
     tdHand.group.position.set(0, tdHandRestY(), 0);
@@ -281,6 +313,18 @@ function tdBuildTripods() {
   };
   make('left', 0);
   for (let i = 0; i < 5; i++) make('right', i);
+  tdApplyRoundVisibility();
+}
+
+function tdRightCount() {
+  const r = TD_ROUNDS[Math.min(tdGame.round, TD_ROUNDS.length - 1)];
+  return r.rightCount;
+}
+
+// 이번 조건의 오른쪽 인원 수만큼만 트라이포드를 씀
+function tdApplyRoundVisibility() {
+  const n = tdRightCount();
+  tdTripods.forEach((t) => { t.active = t.side === 'left' || t.slot < n; if (!t.active) t.mesh.visible = false; });
 }
 
 function tdBuildParticles() {
@@ -328,12 +372,30 @@ function isHandClickable_TrolleyDilemma(time) {
   return tdState.phase === 'ready' && time >= tdState.readyStart;
 }
 
-function handleRaycastHit_TrolleyDilemma(hit, time) {
-  if (!hit || hit.object !== tdHand.proxy) return false;
+// 화면 왼쪽/오른쪽 공간을 누름 = 그쪽을 살림. 손가락이 그쪽을 누르고, 반대쪽이 희생됨
+function choose_TrolleyDilemma(side, time) {
+  if (side !== 'left' && side !== 'right') return false;
   if (!isHandClickable_TrolleyDilemma(time)) return false;
   const remaining = Math.max(0, TD_TIMING.countdown - (time - tdState.readyStart));
-  tdState = { phase: 'pressing', pressStart: time, frozen: remaining, choice: 'press' };
+  tdGame.choices.push({ saved: side, timeout: false, round: tdGame.round });
+  tdState = { phase: 'pressing', pressStart: time, frozen: remaining, choice: 'press', saved: side };
+  tdHoverSide = null;
   return true;
+}
+
+// 예전 방식(손 클릭)도 남겨 둠: 손을 누르면 커서가 있는 쪽을 고른 것으로
+function handleRaycastHit_TrolleyDilemma(hit, time) {
+  if (!hit || hit.object !== tdHand.proxy) return false;
+  return choose_TrolleyDilemma(tdAim.x < 0 ? 'left' : 'right', time);
+}
+
+function setAim_TrolleyDilemma(ndcX, ndcY) {
+  tdAim.x = Math.max(-1, Math.min(1, ndcX));
+  tdAim.y = Math.max(-1, Math.min(1, ndcY));
+}
+
+function setHoverSide_TrolleyDilemma(side) {
+  tdHoverSide = side;
 }
 
 // ---------------------------------------------------------
@@ -341,7 +403,7 @@ function handleRaycastHit_TrolleyDilemma(hit, time) {
 // ---------------------------------------------------------
 function tdExplode(sourceSide, time) {
   const P = tdParticles;
-  const sources = tdTripods.filter((t) => t.side === sourceSide);
+  const sources = tdTripods.filter((t) => t.side === sourceSide && t.active);
   tdRoot.updateMatrixWorld(true);
   const local = new THREE.Vector3();
   P.mesh.material.clippingPlanes = null; // 폭발 중에는 자르지 않음
@@ -380,7 +442,7 @@ function tdExplode(sourceSide, time) {
   P.mesh.visible = true;
 
   // 폭발하지 않는 쪽은 사라짐
-  tdTripods.forEach((t) => { if (t.side !== sourceSide) t.vanishStart = time; });
+  tdTripods.forEach((t) => { if (t.side !== sourceSide && t.active) t.vanishStart = time; });
   tdState.phase = 'explode';
   tdState.explodeStart = time;
   tdState.source = sourceSide;
@@ -498,20 +560,35 @@ function updateExperiment_TrolleyDilemma(time, deltaTime) {
   // ----- 트라이포드 (살짝 떠 있는 듯 흔들림 / 사라짐 / 다시 나타남) -----
   tdTripods.forEach((t, i) => {
     const m = t.mesh;
+    if (!t.active) { m.visible = false; return; }
     m.position.set(t.homeX, t.homeY + Math.sin(time * 1.1 + i * 0.9) * 0.15, 0);
     if (t.vanishStart >= 0) {
       const k = 1 - tdSmooth((time - t.vanishStart) / T.vanish);
       m.scale.setScalar(Math.max(0.0001, k));
       if (k <= 0) { m.visible = false; t.vanishStart = -1; }
     } else if (m.visible) {
-      m.scale.setScalar(Math.max(0.0001, tdSmooth((time - t.appearStart) / T.appear)));
+      const hover = tdState.phase === 'ready' && tdHoverSide === t.side ? 1.15 : 1;
+      t.hoverS = (t.hoverS || 1) + (hover - (t.hoverS || 1)) * Math.min(1, dt * 10);
+      m.scale.setScalar(Math.max(0.0001, tdSmooth((time - t.appearStart) / T.appear)) * t.hoverS);
     }
   });
 
   // ----- 시간 초과 -----
   if (st.phase === 'ready' && time - st.readyStart >= T.countdown) {
+    tdGame.choices.push({ saved: 'left', timeout: true, round: tdGame.round });
     tdState = { phase: 'timeout', choice: 'wait' };
-    tdExplode('right', time); // 아무것도 안 하면 5명 쪽
+    tdExplode('right', time); // 아무것도 고르지 않으면 원래 선로(여러 명 쪽)로
+  }
+
+  // ----- 손가락이 커서를 가리킴 (고르기 전까지) -----
+  if (tdState.phase === 'waiting' || tdState.phase === 'ready') {
+    const k = Math.min(1, dt * TD_LAYOUT.aimFollow);
+    tdAim.yaw += (tdAim.x * TD_LAYOUT.aimYaw - tdAim.yaw) * k;
+    tdAim.pitch += (tdAim.y * TD_LAYOUT.aimPitch - tdAim.pitch) * k;
+  }
+  if (['waiting', 'ready', 'pressing', 'timeout', 'explode', 'gather'].includes(tdState.phase)) {
+    // 검지는 +z(보는 사람 쪽)를 향함: y축 회전으로 좌우, x축 회전으로 위아래를 가리킴
+    tdHand.group.rotation.set(TD_LAYOUT.handRotX - tdAim.pitch, TD_LAYOUT.handRotY + tdAim.yaw, 0);
   }
 
   // ----- 손을 누름 -----
@@ -520,7 +597,7 @@ function updateExperiment_TrolleyDilemma(time, deltaTime) {
     tdHand.bend = e;
     tdHand.group.position.y = tdHandRestY() - TD_LAYOUT.handDrop * e;
     tdWriteHand(false);
-    if (time - st.pressStart >= T.pressToExplode) tdExplode('left', time); // 선로를 바꾸면 1명 쪽
+    if (time - st.pressStart >= T.pressToExplode) tdExplode(st.saved === 'left' ? 'right' : 'left', time); // 살리지 않은 쪽
   }
 
   // ----- 폭발: 중력 + 양옆 벽 반사 + 바닥에서 정지 -----
@@ -571,6 +648,8 @@ function updateExperiment_TrolleyDilemma(time, deltaTime) {
       tdState.phase = 'morph';
       tdState.morphStart = time + T.morphDelay;
       tdState.morphFromY = tdHand.group.position.y;
+      tdState.morphFromRotX = tdHand.group.rotation.x;
+      tdState.morphFromRotY = tdHand.group.rotation.y;
     }
   }
 
@@ -590,7 +669,7 @@ function updateExperiment_TrolleyDilemma(time, deltaTime) {
   if (tdState.phase === 'morph') {
     const e = tdEaseInOutCubic((time - tdState.morphStart) / T.morph);
     const g = tdHand.group;
-    g.rotation.set(TD_LAYOUT.handRotX * (1 - e), TD_LAYOUT.handRotY * (1 - e), 0);
+    g.rotation.set(tdState.morphFromRotX * (1 - e), tdState.morphFromRotY * (1 - e), 0);
     g.scale.setScalar(TD_LAYOUT.handScale + (1 - TD_LAYOUT.handScale) * e);
     g.position.set(0, tdState.morphFromY, 0);
     tdHand.morph = e;
@@ -625,10 +704,17 @@ function updateExperiment_TrolleyDilemma(time, deltaTime) {
     tdWriteParticles();
     if (P.scale <= 0) {
       P.mesh.visible = false;
+      tdGame.round++;
+      if (tdGame.round >= TD_ROUNDS.length) {
+        tdState = { phase: 'finished' }; // 6번 모두 골랐음
+        return;
+      }
+      tdApplyRoundVisibility();
       tdApplyLayout();
       tdTripods.forEach((t) => {
-        t.mesh.visible = true;
         t.vanishStart = -1;
+        if (!t.active) return;
+        t.mesh.visible = true;
         t.appearStart = time;
         t.mesh.scale.setScalar(0.0001);
       });
@@ -671,4 +757,52 @@ function getStopwatch_TrolleyDilemma(time) {
     y: g.position.y + tdHand.topY * g.scale.x + TD_LAYOUT.stopwatchGap,
     z: 0,
   };
+}
+
+// ---------------------------------------------------------
+// 게임 상태
+// ---------------------------------------------------------
+function getGame_TrolleyDilemma(time) {
+  const st = tdState;
+  const r = TD_ROUNDS[Math.min(tdGame.round, TD_ROUNDS.length - 1)];
+  return {
+    phase: st.phase,
+    round: tdGame.round,
+    rounds: TD_ROUNDS.length,
+    left: r.left,
+    right: r.right,
+    timeLeft: st.phase === 'ready' ? Math.max(0, Math.min(TD_TIMING.countdown, TD_TIMING.countdown - (time - st.readyStart))) : 0,
+    choosing: st.phase === 'ready' && time >= st.readyStart,
+    choices: tdGame.choices.map((c) => ({
+      left: TD_ROUNDS[c.round].left, right: TD_ROUNDS[c.round].right, saved: c.saved, timeout: c.timeout,
+    })),
+    finished: st.phase === 'finished',
+    hoverSide: tdHoverSide,
+  };
+}
+
+// 무리 아래 이름표 자리 (월드 좌표, tdRoot는 회전하지 않음)
+function getLabelAnchors_TrolleyDilemma() {
+  const L = TD_LAYOUT;
+  const y = tdBounds.halfH * L.tripodYFrac - 3.0;
+  return {
+    left: new THREE.Vector3(-tdBounds.halfW * L.tripodXFrac, y, 0),
+    right: new THREE.Vector3(tdBounds.halfW * L.tripodXFrac, y, 0),
+  };
+}
+
+function resetGame_TrolleyDilemma(time) {
+  tdGame = { round: 0, choices: [] };
+  tdApplyRoundVisibility();
+  tdApplyLayout();
+  tdTripods.forEach((t) => {
+    t.vanishStart = -1;
+    if (!t.active) return;
+    t.mesh.visible = true;
+    t.appearStart = time;
+    t.mesh.scale.setScalar(0.0001);
+  });
+  tdParticles.mesh.visible = false;
+  tdResetHandPose(0);
+  tdState = { phase: 'ready', readyStart: time + TD_TIMING.appear, appearStart: time };
 }

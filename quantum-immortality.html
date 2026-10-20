@@ -9,24 +9,6 @@
   canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
   body.started canvas { opacity: 1; }
 
-  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
-  #introText {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(780px, 86vw);
-    color: beige;
-    font-family: serif;
-    text-align: center;
-    font-size: 17px;
-    line-height: 1.9;
-    z-index: 5;
-    transition: opacity 0.6s ease;
-    pointer-events: none;
-    word-break: keep-all;
-  }
-
   /* 점등 순간 시야가 베이지색으로 덮였다가, 무수한 삼각형이 파도처럼 빠져나가며 갈라짐 */
   #splitCanvas {
     position: fixed;
@@ -67,6 +49,24 @@
     z-index: 5;
   }
 
+  /* 이번 생존 확률 (1인칭) */
+  #prob {
+    position: fixed;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  #prob .pb-label { font-size: 14px; color: rgba(245, 245, 220, 0.6); letter-spacing: 0.08em; }
+  #prob .pb-value { font-size: 44px; font-style: italic; font-variant-numeric: tabular-nums; }
+
+  /* 방아쇠 버튼 */
   #modeBtn {
     position: fixed;
     bottom: 34px;
@@ -88,33 +88,32 @@
   }
   body.started #modeBtn { opacity: 1; pointer-events: auto; }
   #modeBtn:hover { background: rgba(60, 62, 75, 0.85); }
+  #modeBtn:disabled { opacity: 0.35 !important; cursor: default; }
+  body.third #modeBtn { opacity: 0 !important; pointer-events: none; }
+
+  /* 설명 화면의 기록 */
+  .qsRecord { margin: 0 auto 18px; font-size: 15px; color: #d9d4c0; line-height: 1.9; }
+  .qsRecord b { color: #f0c48a; font-weight: normal; font-size: 19px; }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  다세계 해석의 모든 경우의 수로 시간 선이 쪼개진다는 가설로 추론된 사고 실험으로 양자적 자살과 불멸이 있다.
-  만약 자살자가 머리에 장전된 총을 겨누고 방아쇠를 당겼다고 가정했을 때,
-  대체로 총은 발사되고 자살자는 죽을 가능성이 높다.<br>
-  <br>
-  그러나 총이나 총알이 망가져 발사되지 않을 가능성 역시 어떻게든 존재하고,
-  설사 총알이 발사된다고 해도 생존할 가능성 역시 존재한다.
-  이러한 경우의 수(단위: 입자적 수준)가 무한대로 쪼개지다 보면
-  방아쇠를 몇 번을 당기든 간에 자살자가 생존하는 경우의 수는 계속적으로 생겨나며,
-  자살자의 의식은 그가 생존한 시간 선 위에서 계속 불멸한다고 보는 개념이다.<br>
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">방아쇠를 당겨, 다섯 번 살아남아라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
 
 <canvas id="splitCanvas"></canvas>
 <div id="reason"></div>
+<div id="prob"><div class="pb-label">이번 생존 확률</div><div class="pb-value" id="probValue">-</div></div>
 <div id="labels"></div>
-<button id="modeBtn">모든 분기 기점</button>
+<button id="modeBtn">방아쇠를 당긴다</button>
 
 <!-- Three.js -->
 <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
 
-<!-- 공통 템플릿(제목바/목차) -->
+<!-- 공통 템플릿(제목바/목차/게임 UI) -->
 <script src="./template.js"></script>
 
 <!-- 함수 파일 -->
@@ -122,6 +121,18 @@
 
 <script>
   initPageTemplate({ title: "Thought Experiment 0 0 7 - Quantum suicide and immortality", activeId: 7 });
+
+  // ---------- 3. 설명 화면에 띄울 실험 원문 / 질문 ----------
+  const ORIGINAL_HTML = `
+    다세계 해석의 모든 경우의 수로 시간 선이 쪼개진다는 가설로 추론된 사고 실험으로 양자적 자살과 불멸이 있다.
+    만약 자살자가 머리에 장전된 총을 겨누고 방아쇠를 당겼다고 가정했을 때,
+    대체로 총은 발사되고 자살자는 죽을 가능성이 높다.<br><br>
+    그러나 총이나 총알이 망가져 발사되지 않을 가능성 역시 어떻게든 존재하고,
+    설사 총알이 발사된다고 해도 생존할 가능성 역시 존재한다.
+    이러한 경우의 수(단위: 입자적 수준)가 무한대로 쪼개지다 보면
+    방아쇠를 몇 번을 당기든 간에 자살자가 생존하는 경우의 수는 계속적으로 생겨나며,
+    자살자의 의식은 그가 생존한 시간 선 위에서 계속 불멸한다고 보는 개념이다.`;
+  const QUESTION = '스스로가 세계의 기준이라면, 불멸. 그러나 타인이 보기엔 그저 자살이다.';
 
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
@@ -141,29 +152,34 @@
   let elapsedTime = 0;
   initExperiment_Quantum(scene, elapsedTime);
 
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 1인칭으로 시작 ----------
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 1인칭으로 시작 ----------
   let started = false;
   function isUi(target) {
-    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #modeBtn');
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #modeBtn, #gameHud, #gameResult');
   }
   window.addEventListener('mousedown', (event) => {
     if (started || isUi(event.target) || event.button !== 0) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
     started = true;
-    const introEl = document.getElementById('introText');
+    const introEl = document.getElementById('startScreen');
     introEl.style.opacity = '0';
     setTimeout(() => { introEl.style.display = 'none'; }, 650);
     document.body.classList.add('started');
+    GameUI.initHud({ goal: '생존 기록을 세워라' });
     start_Quantum(elapsedTime);
-  });
+  }, true);
 
-  // ---------- 시점 전환 버튼 ----------
+  // ---------- 방아쇠 버튼 (스페이스바로도) ----------
   const modeBtn = document.getElementById('modeBtn');
   const reasonEl = document.getElementById('reason');
-  modeBtn.addEventListener('click', () => {
-    const toThird = getMode_Quantum() === 'first';
-    setMode_Quantum(toThird ? 'third' : 'first', elapsedTime);
-    modeBtn.textContent = toThird ? '나의 시점' : '모든 분기 기점';
-    if (toThird) reasonEl.style.opacity = '0';
+  const probEl = document.getElementById('prob');
+  const probValueEl = document.getElementById('probValue');
+  function fire() {
+    if (started && fire_Quantum(elapsedTime)) reasonEl.style.opacity = '0';
+  }
+  modeBtn.addEventListener('click', fire);
+  window.addEventListener('keydown', (event) => {
+    if (event.code === 'Space') { event.preventDefault(); fire(); }
   });
 
   // ---------- 1인칭 점등: 시야가 베이지색으로 덮였다가 삼각형 파도로 빠져나감 + 살아남은 이유 ----------
@@ -230,9 +246,9 @@
     reasonEl.style.opacity = '0';
     setTimeout(() => {
       if (getMode_Quantum() !== 'first') return;
-      reasonEl.textContent = reason;
+      reasonEl.textContent = `살아남았다 — ${reason}`;
       reasonEl.style.opacity = '1';
-      reasonTimer = setTimeout(() => { reasonEl.style.opacity = '0'; }, 2200);
+      reasonTimer = setTimeout(() => { reasonEl.style.opacity = '0'; }, 1800);
     }, 450);
   }
 
@@ -256,6 +272,66 @@
     });
   }
 
+  // ---------- 목표 패널 / 확률 / 결과 ----------
+  // 확률 표시: 작아질수록 유효숫자 2자리로 (0.0045% 처럼)
+  function pct(p) {
+    const v = p * 100;
+    if (v >= 10) return Math.round(v) + '%';
+    if (v >= 1) return v.toFixed(1) + '%';
+    return Number(v.toPrecision(2)) + '%';
+  }
+  const oneIn = (p) => Math.max(1, Math.round(1 / p)).toLocaleString('ko-KR');
+  let resultShown = false;
+  function retry() {
+    resultShown = false;
+    document.body.classList.remove('third');
+    resetGame_Quantum(elapsedTime);
+  }
+  function updateHud() {
+    if (!started) return;
+    const g = getGame_Quantum(elapsedTime);
+    const third = g.phase === 'replay' || g.phase === 'summary';
+    document.body.classList.toggle('third', third);
+
+    // 1인칭: 이번 생존 확률 + 방아쇠
+    probValueEl.textContent = pct(g.prob);
+    probEl.style.opacity = !third && g.phase === 'first' && (g.canFire || g.firing) ? '1' : '0';
+    modeBtn.disabled = !g.canFire;
+
+    const dots = Array.from({ length: g.need }, (_, i) => (i < g.survived ? '▲' : '△')).join(' ');
+    if (!third) {
+      GameUI.setStatus(`생존: <b>${g.survived}</b> / ${g.need} &nbsp;${dots}`);
+      if (g.phase === 'toThird') GameUI.setHint('다섯 번 살아남았다. 이제 모든 갈래를 본다...');
+      else if (g.canFire) GameUI.setHint('방아쇠를 당기세요. (버튼 또는 스페이스바)');
+      else GameUI.setHint('');
+    } else {
+      const r = Math.max(1, g.replayRound);
+      GameUI.setStatus(
+        `모든 갈래에서 본 ${r}번째 방아쇠<br>` +
+        `이번 생존 확률: <b>${pct(g.probs[r - 1])}</b><br>` +
+        `여기까지 살아남은 갈래: <b>${pct(g.cumulative)}</b> (${oneIn(g.cumulative)}개 중 1)`
+      );
+      GameUI.setHint('나의 시점에서는 언제나 살아남았지만, 거의 모든 갈래에서 나는 죽었다.');
+    }
+
+    if (g.done && !resultShown) {
+      resultShown = true;
+      const record =
+        `<div class="qsRecord">` +
+        `${g.probs.map(pct).join(' × ')} = <b>${pct(g.allSurvive)}</b><br>` +
+        `당신이 겪은 다섯 번의 생존은, 약 <b>${oneIn(g.allSurvive)}</b>개의 세계 중 단 하나에서만 일어난 일이다.<br>` +
+        `나머지 모든 세계에서 당신은 죽었다.` +
+        `</div>`;
+      GameUI.showResult({
+        success: true,
+        title: '목표 완료: 다섯 번 살아남았다',
+        original: record + ORIGINAL_HTML,
+        question: QUESTION,
+        onRetry: retry,
+      });
+    }
+  }
+
   // ---------- 렌더 루프 ----------
   function animate() {
     requestAnimationFrame(animate);
@@ -268,6 +344,7 @@
     camera.position.set(cam.px, cam.py, cam.pz);
     camera.lookAt(cam.lx, cam.ly, cam.lz);
     updateLabels();
+    updateHud();
     renderer.render(scene, camera);
     drawWave(performance.now());
   }

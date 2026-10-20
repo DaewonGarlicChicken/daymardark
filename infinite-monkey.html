@@ -6,78 +6,43 @@
 <link rel="stylesheet" href="./template.css" />
 <style>
   /* 이 페이지(무한 원숭이 정리)만의 스타일 - 공통 껍데기는 template.css에 있음 */
-  canvas { display: block; }
+  canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
+  body.started canvas { opacity: 1; }
 
-  /* ---------- 시작 화면 / 본 화면 ---------- */
-  canvas, #panel { opacity: 0; transition: opacity 1.2s ease; }
-  #panel { pointer-events: none; }
-  body.started canvas, body.started #panel { opacity: 1; }
-  body.started #panel { pointer-events: auto; }
-
-  #introText {
+  /* 남은 시간 (화면 위 가운데, 제목바 아래) */
+  #timer {
     position: fixed;
-    top: 50%;
+    top: 84px;
     left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(760px, 86vw);
+    transform: translateX(-50%);
     color: beige;
     font-family: serif;
-    text-align: center;
-    font-size: 18px;
-    line-height: 1.9;
+    font-size: 30px;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
     z-index: 5;
-    transition: opacity 0.6s ease;
     pointer-events: none;
-    word-break: keep-all;
+    opacity: 0;
+    transition: opacity 0.6s ease, color 0.3s ease;
   }
-
-  #panel {
-    position: fixed;
-    top: 16px;
-    left: 16px;
-    background: rgba(20, 22, 30, 0.85);
-    color: beige;
-    padding: 14px 16px;
-    border-radius: 10px;
-    font-size: 13px;
-    line-height: 1.7;
-    z-index: 10;
-    width: 270px;
-    font-family: serif;
-  }
-  #panel input[type="range"] { width: 100%; margin: 4px 0 8px; accent-color: #e8c25a; }
-  #panel .row { display: flex; justify-content: space-between; }
-  #panel .big { font-size: 15px; }
-  #panel hr { border: none; border-top: 1px solid rgba(245, 245, 220, 0.2); margin: 8px 0; }
+  body.started #timer { opacity: 1; }
+  #timer.warn { color: #f0c48a; }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  원숭이가 무한한 시간 동안 타자기의 자판을 무작위로 누를 수 있다면,<br>
-  어느 시점에는 셰익스피어 전집을 입력할 수 있다.<br>
-  불가능에 가까워 보이더라도, 가능성이 있다면 그것은 닫힌 결말이 아니다.<br>
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">원숭이들과 함께, 30초 안에 세 문단을 완성하라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
 
-<div id="panel">
-  <div class="row"><span>타자 속도</span><span id="speedLabel"></span></div>
-  <input id="speedInput" type="range" min="0" max="1000" step="1" />
-  <div class="row"><span>한 칸이 맞을 확률</span><span id="probLabel"></span></div>
-  <div class="row big"><span>이 속도로 문장 완성까지 (평균)</span></div>
-  <div class="row big"><span></span><span id="expectedLabel"></span></div>
-  <hr />
-  <div class="row"><span>경과 시간</span><span id="elapsedLabel"></span></div>
-  <div class="row"><span>지금 칸</span><span id="slotLabel"></span></div>
-  <div class="row"><span>누른 횟수</span><span id="attemptsLabel"></span></div>
-  <div class="row"><span>직전 완성 기록</span><span id="recordLabel">-</span></div>
-</div>
+<div id="timer">30.00</div>
 
 <!-- Three.js -->
 <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
 
-<!-- 공통 템플릿(제목바/목차) -->
+<!-- 공통 템플릿(제목바/목차/게임 UI) -->
 <script src="./template.js"></script>
 
 <!-- 함수 파일 -->
@@ -86,16 +51,22 @@
 <script>
   initPageTemplate({ title: "Thought Experiment 0 0 5 - Infinite monkey theorem", activeId: 5 });
 
+  // ---------- 3. 설명 화면에 띄울 실험 원문 / 질문 ----------
+  const ORIGINAL_HTML = `
+    원숭이가 무한한 시간 동안 타자기의 자판을 무작위로 누를 수 있다면,<br>
+    어느 시점에는 셰익스피어 전집(주어진 유한한 텍스트)을 입력할 수 있다.`;
+  const QUESTION = '아무리 낮은 확률이어도, 가능성이 있다면 존재한다.';
+
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-  // 문장(가로 약 70) 전체가 화면 폭에 들어오도록 카메라 거리 조절
+  // 문단과 자판 전체가 화면에 들어오도록 카메라 거리 조절
   function fitCamera() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     const tanH = Math.tan((55 * Math.PI / 180) / 2);
-    const dist = Math.max(36 / tanH, 40 / (tanH * camera.aspect));
+    const dist = Math.max(30 / tanH, 30 / (tanH * camera.aspect));
     camera.position.set(0, 0, dist);
     camera.lookAt(0, 0, 0);
   }
@@ -111,59 +82,105 @@
     fitCamera();
   });
 
-  // ---------- 초기화 ----------
   const clock = new THREE.Clock();
   let elapsedTime = 0;
   initExperiment_InfiniteMonkey(scene, elapsedTime);
 
-  // ---------- 속도 슬라이더 (로그 눈금: 초당 0.5회 ~ 60회) ----------
-  const SPEED_MIN = 0.5, SPEED_MAX = 60, SPEED_DEFAULT = 3.6; // 기본 속도에서 평균 약 30초에 완성
-  const speedInput = document.getElementById('speedInput');
-  const toSpeed = (v) => SPEED_MIN * Math.pow(SPEED_MAX / SPEED_MIN, v / 1000);
-  const toSlider = (s) => Math.round(1000 * Math.log(s / SPEED_MIN) / Math.log(SPEED_MAX / SPEED_MIN));
-  speedInput.value = toSlider(SPEED_DEFAULT);
-  function applySpeed() {
-    const s = toSpeed(Number(speedInput.value));
-    setSpeed_InfiniteMonkey(s);
-    document.getElementById('speedLabel').textContent = (s < 10 ? s.toFixed(1) : Math.round(s)) + '회/초';
-  }
-  speedInput.addEventListener('input', applySpeed);
-  applySpeed();
-
-  function fmtTime(sec) {
-    if (sec === undefined || sec === null || !isFinite(sec)) return '-';
-    sec = Math.max(0, sec);
-    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-    const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
-    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-  }
-
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 게임 시작 ----------
   let started = false;
-  function isTemplateUi(target) {
-    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #panel');
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameHud, #gameResult');
   }
   window.addEventListener('mousedown', (event) => {
-    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    if (started || isUi(event.target)) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
+    if (event.button !== 0) return;
     started = true;
-    const introEl = document.getElementById('introText');
+    const introEl = document.getElementById('startScreen');
     introEl.style.opacity = '0';
     setTimeout(() => { introEl.style.display = 'none'; }, 650);
     document.body.classList.add('started');
-    start_InfiniteMonkey(elapsedTime);
+    GameUI.initHud({ goal: '문장을 완성하라' });
+    startGame_InfiniteMonkey(elapsedTime);
+  }, true);
+
+  // ---------- 키 클릭: 그 키의 글자(도형)를 침 ----------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  function keyAt(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(getKeyMeshes_InfiniteMonkey(), false);
+    return hits.length ? hits[0].object.userData.keyIndex : -1;
+  }
+  renderer.domElement.addEventListener('mousemove', (event) => {
+    if (!started) return;
+    const g = getGame_InfiniteMonkey(elapsedTime);
+    const k = g.phase === 'playing' ? keyAt(event) : -1;
+    setHoverKey_InfiniteMonkey(k);
+    renderer.domElement.style.cursor = k >= 0 ? 'pointer' : 'default';
+  });
+  renderer.domElement.addEventListener('mouseleave', () => setHoverKey_InfiniteMonkey(-1));
+  let lastWrong = -10;
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (!started || event.button !== 0) return;
+    const k = keyAt(event);
+    if (k < 0) return;
+    if (pressKey_InfiniteMonkey(k, elapsedTime) === 'wrong') lastWrong = elapsedTime;
   });
 
-  // ---------- 패널 갱신 ----------
-  const el = (id) => document.getElementById(id);
-  function updatePanel() {
-    const s = getStats_InfiniteMonkey(elapsedTime);
-    el('probLabel').textContent = `1 / ${s.combos}`;
-    el('expectedLabel').textContent = fmtTime(s.expectedSeconds);
-    el('elapsedLabel').textContent = fmtTime(s.elapsed);
-    el('slotLabel').textContent = `${s.slot} / ${s.slots}`;
-    el('attemptsLabel').textContent = `${s.attempts.toLocaleString()}회`;
-    el('recordLabel').textContent = s.lastRecord !== undefined
-      ? `${fmtTime(s.lastRecord)} (${s.completedCount}번째 문장)` : '-';
+  // ---------- 목표 패널 / 남은 시간 / 결과 ----------
+  const timerEl = document.getElementById('timer');
+  let resultShown = false;
+  function retry() {
+    resultShown = false;
+    resetGame_InfiniteMonkey(elapsedTime);
+  }
+  function updateHud() {
+    if (!started) return;
+    const g = getGame_InfiniteMonkey(elapsedTime);
+    timerEl.textContent = g.timeLeft.toFixed(2).padStart(5, '0');
+    timerEl.classList.toggle('warn', g.timeLeft < 8);
+
+    GameUI.setStatus(
+      `문단: <b>${Math.min(g.stage + 1, g.stages)}</b> / ${g.stages} &nbsp;(원숭이 ${g.monkeys}마리)<br>` +
+      `글자: <b>${g.filled}</b> / ${g.total}<br>` +
+      `원숭이가 맞힌 글자: ${g.monkeyHits} · 내가 맞힌 글자: ${g.userHits}`
+    );
+    if (g.phase === 'playing') {
+      if (g.stageComplete) GameUI.setHint('문단 완성! 원숭이와 문장이 하나씩 늘어납니다.');
+      else if (elapsedTime - lastWrong < 0.8) GameUI.setHint('그 글자를 기다리는 칸이 없습니다.', true);
+      else GameUI.setHint('자판에서 빈 칸에 들어갈 모양의 키를 누르세요. 원숭이들도 무작위로 치고 있습니다.');
+    } else {
+      GameUI.setHint('');
+    }
+
+    if (g.phase === 'done' && !resultShown) {
+      resultShown = true;
+      setTimeout(() => {
+        if (g.result === 'win') {
+          GameUI.showResult({
+            success: true,
+            title: '목표 완료: 세 문단을 완성했다',
+            original:
+              `<div style="margin-bottom:14px;color:rgba(245,245,220,0.6)">원숭이들은 ${g.monkeyPresses}번 무작위로 눌러 ${g.monkeyHits}글자를 맞혔고, 당신은 ${g.userPresses}번 눌러 ${g.userHits}글자를 맞혔습니다.</div>` +
+              ORIGINAL_HTML,
+            question: QUESTION,
+            onRetry: retry,
+          });
+        } else {
+          GameUI.showResult({
+            success: false,
+            title: '실패: 시간 안에 문단을 완성하지 못했다',
+            original: `${g.stage + 1}번째 문단에서 ${g.filled} / ${g.total}글자까지 완성했습니다.`,
+            retryText: '다시 하기',
+            onRetry: retry,
+          });
+        }
+      }, 900);
+    }
   }
 
   // ---------- 렌더 루프 ----------
@@ -172,7 +189,7 @@
     const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
     elapsedTime += deltaTime;
     updateExperiment_InfiniteMonkey(elapsedTime, deltaTime);
-    updatePanel();
+    updateHud();
     renderer.render(scene, camera);
   }
   animate();

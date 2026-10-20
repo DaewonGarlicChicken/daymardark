@@ -9,41 +9,60 @@
   canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
   body.started canvas { opacity: 1; }
 
-  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
-  #introText {
+  /* 남은 시간 (화면 위 가운데, 제목바 아래) */
+  #timer {
     position: fixed;
-    top: 50%;
+    top: 84px;
     left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(760px, 86vw);
+    transform: translateX(-50%);
     color: beige;
     font-family: serif;
-    text-align: center;
-    font-size: 18px;
-    line-height: 1.9;
+    font-size: 30px;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
     z-index: 5;
-    transition: opacity 0.6s ease;
     pointer-events: none;
-    word-break: keep-all;
+    opacity: 0;
+    transition: opacity 0.6s ease, color 0.3s ease;
   }
+  body.started #timer { opacity: 1; }
+  #timer.warn { color: #f0c48a; }
+
+  /* 건초 / 물 이름표 (화면 아래 양쪽) */
+  .sideLabel {
+    position: fixed;
+    bottom: 40px;
+    color: beige;
+    font-family: serif;
+    font-size: 20px;
+    font-style: italic;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  body.started .sideLabel { opacity: 0.8; }
+  .sideLabel.hit { color: #fff6d8; transform: scale(1.12); opacity: 1; }
+  #labelHay { left: 12vw; }
+  #labelWater { right: 12vw; }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  어떤 배고프고 목마른 당나귀가 있다.<br>
-  그 앞에는 동일한 만족을 주는 건초 묶음과 물 동이가 놓여져 있다.<br>
-  하지만 그 당나귀가 최선을 선택하는 이성적 판단만을 가지고 있다고 한다면,<br>
-  그 당나귀는 어떤 것도 포기할 수 없고 어떤 것도 선택할 수 없어서 죽게 될 것이다.<br>
-  이유가 있어야만 선택하는 것은, 우리를 당나귀로 만드는 것일까.<br>
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">건초와 물 사이 망설이는 당나귀를, 어느 한쪽을 연타해 살려라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
+
+<div id="timer">30.00</div>
+<div class="sideLabel" id="labelHay">← 건초</div>
+<div class="sideLabel" id="labelWater">물 →</div>
 
 <!-- Three.js -->
 <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
 
-<!-- 공통 템플릿(제목바/목차) -->
+<!-- 공통 템플릿(제목바/목차/게임 UI) -->
 <script src="./template.js"></script>
 
 <!-- 함수 파일 -->
@@ -58,14 +77,20 @@
   const FOV = 55;
   const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-  // 건초 더미(왼쪽) ~ 물 더미(오른쪽)가 모두 보이도록, 살짝 위에서 내려다보는 구도
+  // 탑뷰: 바로 위에서 내려다봄 -> 당나귀가 걸은 길(동선)이 땅 위에 그대로 보임
+  // 화면 위쪽 = 땅의 안쪽(-z), 화면 아래쪽 = 바깥쪽(+z)
+  // 건초 더미(왼쪽) ~ 물 더미(오른쪽)와 당나귀가 움직이는 깊이 범위가 모두 들어오도록 높이를 맞춤
+  const TOP_HALF_X = 36;   // 더미 바깥 끝 + 여유
+  const TOP_HALF_Z = 19;   // 당나귀가 움직이는 깊이 범위 + 여유
+  const TOP_CENTER_Z = -2; // 제목바 몫만큼 화면 아래로 살짝 내려 보이게
   function fitCamera() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     const tanH = Math.tan((FOV * Math.PI / 180) / 2);
-    const dist = Math.max(19 / tanH, 36 / (tanH * camera.aspect));
-    camera.position.set(0, 5 + dist * 0.2, dist);
-    camera.lookAt(0, 5, 0);
+    const dist = Math.max(TOP_HALF_Z / tanH, TOP_HALF_X / (tanH * camera.aspect)) * 1.08;
+    camera.up.set(0, 0, -1);
+    camera.position.set(0, dist, TOP_CENTER_Z);
+    camera.lookAt(0, 0, TOP_CENTER_Z);
   }
   fitCamera();
 
@@ -84,20 +109,96 @@
   let elapsedTime = 0;
   initExperiment_BuridanDonkey(scene, elapsedTime);
 
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 (당나귀의 20초가 시작) ----------
+  // ---------- 3. 설명 화면에 띄울 실험 원문 / 질문 ----------
+  const ORIGINAL_HTML = `
+    어떤 배고프고 목마른 당나귀가 있다.<br>
+    그리고 당나귀의 앞에 질적으로나 양적으로나 동일한 만족을 주는<br>
+    건초 묶음과 물 동이가 놓여져 있다.<br>
+    하지만 그 당나귀가 이성적 판단만을 가지고 있다고 한다면,<br>
+    그 당나귀는 물을 원하는 만큼 건초를 원하고, 건초를 원하는 만큼 물을 원하기 때문에,<br>
+    어떤 것도 포기할 수 없고 어떤 것도 선택할 수 없어서 죽게 될 것이다.`;
+  const QUESTION = '이성적 판단만으로는 최선이 될 수 없다';
+
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 당나귀의 30초가 시작됨 ----------
   let started = false;
-  function isTemplateUi(target) {
-    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar');
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameHud, #gameResult');
   }
   window.addEventListener('mousedown', (event) => {
-    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    if (started || isUi(event.target)) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
+    if (event.button !== 0) return;
     started = true;
-    const introEl = document.getElementById('introText');
+    const introEl = document.getElementById('startScreen');
     introEl.style.opacity = '0';
     setTimeout(() => { introEl.style.display = 'none'; }, 650);
     document.body.classList.add('started');
+    GameUI.initHud({ goal: '당나귀를 구해라' });
     start_BuridanDonkey(elapsedTime);
+  }, true);
+
+  // ---------- 클릭: 화면 왼쪽 = 건초, 오른쪽 = 물 ----------
+  const labelHay = document.getElementById('labelHay');
+  const labelWater = document.getElementById('labelWater');
+  function flash(el) {
+    el.classList.add('hit');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('hit'), 120);
+  }
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (!started || event.button !== 0) return;
+    const which = event.clientX < window.innerWidth / 2 ? 'hay' : 'water';
+    if (choose_BuridanDonkey(which, elapsedTime)) flash(which === 'hay' ? labelHay : labelWater);
   });
+  renderer.domElement.addEventListener('mousemove', (event) => {
+    if (!started) return;
+    renderer.domElement.style.cursor = getStatus_BuridanDonkey(elapsedTime).playing ? 'pointer' : 'default';
+  });
+
+  // ---------- 목표 패널 / 남은 시간 / 결과 ----------
+  const timerEl = document.getElementById('timer');
+  let resultShown = false;
+  function retry() {
+    resultShown = false;
+    resetGame_BuridanDonkey(elapsedTime);
+  }
+  function updateHud() {
+    if (!started) return;
+    const s = getStatus_BuridanDonkey(elapsedTime);
+    timerEl.textContent = s.life.toFixed(2).padStart(5, '0');
+    timerEl.classList.toggle('warn', s.life < 8 && s.playing);
+
+    const p = Math.round(Math.abs(s.progress) * 100);
+    const toward = s.progress < -0.02 ? '건초 쪽' : s.progress > 0.02 ? '물 쪽' : '한가운데';
+    GameUI.setStatus(
+      `건초 <b>${s.hay}</b> : <b>${s.water}</b> 물<br>` +
+      `당나귀: ${toward}${p > 2 ? ` <b>${p}%</b>` : ''}`
+    );
+    if (s.phase === 'enter') GameUI.setHint('새 당나귀가 들어오는 중...');
+    else if (s.playing) GameUI.setHint('화면 왼쪽(건초)이나 오른쪽(물)을 연타하세요. 0.5초가 지나면 다시 평형이 되어 당나귀가 망설입니다.');
+    else GameUI.setHint('');
+
+    if (s.finished && !resultShown) {
+      resultShown = true;
+      if (s.result === 'win') {
+        GameUI.showResult({
+          success: true,
+          title: `목표 완료: 당나귀가 ${s.reached < 0 ? '건초를 먹었다' : '물을 마셨다'}`,
+          original: ORIGINAL_HTML,
+          question: QUESTION,
+          onRetry: retry,
+        });
+      } else {
+        GameUI.showResult({
+          success: false,
+          title: '실패: 당나귀는 끝내 고르지 못했다',
+          original: '30초 동안 어느 쪽에도 닿지 못했습니다. 한쪽을 더 빠르게 연타해 보세요.',
+          retryText: '다시 하기',
+          onRetry: retry,
+        });
+      }
+    }
+  }
 
   // ---------- 렌더 루프 ----------
   function animate() {
@@ -105,6 +206,7 @@
     const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
     elapsedTime += deltaTime;
     updateExperiment_BuridanDonkey(elapsedTime, deltaTime);
+    updateHud();
     renderer.render(scene, camera);
   }
   animate();

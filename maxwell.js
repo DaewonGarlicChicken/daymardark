@@ -9,11 +9,15 @@
 //  - 방 위의 뇌: 볼츠만 두뇌와 같은 모양을 작은 삼각형으로 입체적으로 표현
 //    그 안에 기억 15칸(작은 삼각뿔, 흰색)이 입체적으로 배치됨
 //
-// 흐름
-//  - 악마가 무작위로 삼각뿔 하나를 골라 구멍 앞으로 데려와 관찰
-//      빨강은 오른쪽, 파랑은 왼쪽으로 문을 열어 통과시킴 (이미 제자리면 문을 열지 않고 돌려보냄)
-//  - 관찰(판단)할 때마다 뇌 속 기억 한 칸이 노랗게 변함
-//  - 모든 삼각뿔이 제자리에 있으면 더 관찰하지 않음 (기억도 변하지 않음)
+// 게임 (사용자 = 악마)
+//  - 목표: 분자를 완벽하게 분리 (빨강은 오른쪽, 파랑은 왼쪽)
+//  - 떠다니는 분자를 클릭하면 낚아서 구멍 앞으로 데려와 관찰
+//      잘못된 방에 있던 분자 -> 문을 열고 옳은 방으로 보냄
+//      이미 옳은 방에 있던 분자 -> 문을 열지 않고 돌려보냄 (관찰은 했으므로 기억은 참)
+//  - 낚을(관찰할) 때마다 뇌 속 기억 한 칸이 노랗게 변함
+//  - 기억이 다 차면 더 낚을 수 없음 -> 기억을 내보냄(열 방출)
+//      내보낸 개수 / 1.5 만큼 분자가 다시 잘못된 방으로 섞임
+//  - 잘못된 방에 남은 분자가 0이 되면 목표 완료
 //  - 15칸이 모두 노래지면 퍼지며 바스러지고 다시 흰색으로 -> 그 수만큼 노란 작은 삼각형(열)이 화면을 떠다님
 //  - 뇌, 흩어지는 조각, 노란 삼각형은 상단 제목바의 선을 넘지 않음
 //
@@ -22,7 +26,12 @@
 //  setView_MaxwellDemon({ camY, camDist, topY, halfW, halfH })  -> 화면 범위(제목바 선 포함)
 //  start_MaxwellDemon(time)
 //  updateExperiment_MaxwellDemon(time, deltaTime)
-//  getStatus_MaxwellDemon() -> { memory, heat, wrong }
+//  pickMolecule_MaxwellDemon(ndcX, ndcY, camera) -> 화면 좌표 근처 분자 번호 (없으면 -1)
+//  setHover_MaxwellDemon(index)
+//  catchMolecule_MaxwellDemon(index, time) -> 'ok' | 'full' | 'busy' | 'none'
+//  releaseMemory_MaxwellDemon(time)         -> 기억 내보내기 (가득 찼을 때만)
+//  resetGame_MaxwellDemon(time)
+//  getGame_MaxwellDemon() -> { wrong, memory, cap, full, busy, won, remixed }
 // =========================================================
 
 const MX_CONFIG = {
@@ -33,21 +42,22 @@ const MX_CONFIG = {
   molecules: 70,
   molEdge: 0.85,                      // 삼각뿔 한 변 (방이 작아져서 함께 줄임)
   slowSpeed: 2.4,                     // 파랑
-  fastSpeed: 7.5,                     // 빨강
+  fastSpeed: 6.5,                     // 빨강
   brain: {
     scale: 0.115,                     // 볼츠만 두뇌 모양을 이 비율로 줄임 (가로 약 8.5)
     shellCount: 650,                  // 뇌 겉면 삼각형 수
     shellTriSize: 0.3,
-    cells: 15,                        // 기억 칸 수
+    cells: 20,                        // 기억 칸 수
     cellEdge: 0.6,                    // 기억 칸(작은 삼각뿔) 한 변
     topMargin: 1.0,                   // 제목바 선과의 여유
     gap: 1.2,                         // 방 윗면과 뇌 사이 간격
     sway: 0.35,                       // 입체가 드러나도록 천천히 좌우로 도는 폭(라디안)
   },
-  actionInterval: 1.7,                // 악마가 하나씩 관찰하는 간격
-  approach: 0.9,                      // 구멍 앞으로 데려오는 시간
-  passTime: 0.5,                      // 구멍을 통과하는 시간
-  wrongBias: 0.75,                    // 잘못된 쪽에 있는 것을 고를 확률(있을 때)
+  initialWrong: 20,                   // 시작할 때 잘못된 방에 있는 분자 수 (빨강 15 왼쪽 + 파랑 15 오른쪽)
+  remixRatio: 2.0,                    // 기억을 내보내면 (내보낸 개수 / 1.5)만큼 다시 섞임
+  approach: 0.45,                     // 낚은 분자를 구멍 앞으로 데려오는 시간
+  passTime: 0.3,                      // 구멍을 통과하는 시간
+  pickRadiusPx: 26,                   // 클릭 판정 반경(화면 픽셀)
   flush: 1.4,                         // 기억이 가득 차서 퍼지고 바스러지는 시간
   heatSize: 0.32,
   heatMax: 900,
@@ -124,7 +134,7 @@ function initExperiment_MaxwellDemon(scene, time) {
   mxBuildMolecules();
   mxBuildBrain();
   mxBuildHeat();
-  mxState = { phase: 'waiting', memory: 0, nextAction: 0, action: null };
+  mxState = { phase: 'waiting', memory: 0, action: null, won: false, remixed: 0 };
   mxApplyView();
 }
 
@@ -229,7 +239,7 @@ function mxBuildMolecules() {
   const list = [];
   for (let i = 0; i < n; i++) {
     const fast = i < n / 2;                       // 절반 빨강(빠름), 절반 파랑(느림)
-    const side = Math.random() < 0.5 ? -1 : 1;    // 처음엔 양쪽에 섞여 있음
+    const side = 1;                               // 실제 위치는 mxScatter에서 정함
     const speed = fast ? C.fastSpeed : C.slowSpeed;
     const dir = mxRandDir();
     list.push({
@@ -246,7 +256,30 @@ function mxBuildMolecules() {
     for (let f = 0; f < 4; f++) for (let k = 0; k < 3; k++) m.col.array.set([c[0] * C4[f], c[1] * C4[f], c[2] * C4[f]], (i * 4 + f) * 9 + k * 3);
   });
   m.col.needsUpdate = true;
-  mxMol = { mesh: m, list, faces };
+  mxMol = { mesh: m, list, faces, hover: -1 };
+  mxScatter();
+}
+
+// 분자를 방에 흩뿌림: 빨강/파랑 각각 initialWrong/2개는 잘못된 방, 나머지는 옳은 방
+function mxScatter() {
+  const C = MX_CONFIG, R = C.room;
+  const reds = mxMol.list.filter((m) => m.fast), blues = mxMol.list.filter((m) => !m.fast);
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  shuffle(reds); shuffle(blues);
+  const half = Math.round(C.initialWrong / 2);
+  mxMol.list.forEach((m) => {
+    const group = m.fast ? reds : blues;
+    const wrong = group.indexOf(m) < half;
+    const correct = m.fast ? 1 : -1;
+    const side = wrong ? -correct : correct;
+    m.side = side;
+    m.x = side * (1.2 + Math.random() * (R.hx - 2.4));
+    m.y = (Math.random() * 2 - 1) * (R.hy - 1);
+    m.z = (Math.random() * 2 - 1) * (R.hz - 1);
+    const d = mxRandDir();
+    m.vx = d[0] * m.speed; m.vy = d[1] * m.speed; m.vz = d[2] * m.speed;
+    m.guided = false; m.remix = null;
+  });
 }
 
 // ---------------------------------------------------------
@@ -426,9 +459,9 @@ function mxBuildHeat() {
   mxHeat = { m, list: [] };
 }
 
-function mxReleaseHeat(time) {
+function mxReleaseHeat(time, count) {
   const C = MX_CONFIG;
-  mxBrain.cells.forEach((c) => {
+  mxBrain.cells.slice(0, count === undefined ? mxBrain.cells.length : count).forEach((c) => {
     if (mxHeat.list.length >= C.heatMax) mxHeat.list.shift(); // 너무 많아지면 가장 오래된 것부터
     const w = mxCellWorld(c);
     const d = mxRandDir();
@@ -476,18 +509,83 @@ function mxUpdateHeat(time, dt) {
 function start_MaxwellDemon(time) {
   if (mxState.phase !== 'waiting') return;
   mxState.phase = 'running';
-  mxState.nextAction = time + 1.2;
+}
+
+// 화면 좌표(NDC, -1~1) 근처에 있는 분자 찾기 (가장 가까운 것, 판정 반경 안)
+const mxProj = new THREE.Vector3();
+function pickMolecule_MaxwellDemon(ndcX, ndcY, camera, viewW, viewH) {
+  let best = -1, bestD = Infinity;
+  const r = MX_CONFIG.pickRadiusPx;
+  mxMol.list.forEach((m, i) => {
+    if (m.guided) return;
+    mxProj.set(m.x, m.y, m.z).project(camera);
+    const dx = (mxProj.x - ndcX) * viewW / 2, dy = (mxProj.y - ndcY) * viewH / 2;
+    const d = Math.hypot(dx, dy);
+    if (d < r && d < bestD) { bestD = d; best = i; }
+  });
+  return best;
+}
+
+function setHover_MaxwellDemon(i) { mxMol.hover = i; }
+
+function mxBusy() { return !!mxState.action || mxMol.list.some((m) => m.remix) || mxState.flushAt !== undefined; }
+
+function catchMolecule_MaxwellDemon(i, time) {
+  const st = mxState;
+  if (st.phase !== 'running' || st.won) return 'none';
+  if (i < 0 || !mxMol.list[i] || mxMol.list[i].guided) return 'none';
+  if (st.memory >= mxBrain.cells.length) return 'full';   // 기억이 가득 차면 더 낚을 수 없음
+  if (mxBusy()) return 'busy';
+  mxStartAction(time, mxMol.list[i]);
+  return 'ok';
+}
+
+// 기억 내보내기: 열로 방출 + (내보낸 개수 / 1.5)만큼 옳은 방의 분자가 다시 잘못된 방으로
+function releaseMemory_MaxwellDemon(time) {
+  const st = mxState, C = MX_CONFIG;
+  if (st.phase !== 'running' || st.memory < mxBrain.cells.length || mxBusy()) return false;
+  const released = st.memory;
+  mxBrain.flushStart = time;
+  mxReleaseHeat(time, released);
+  st.memory = 0;
+  const n = Math.round(released / C.remixRatio);
+  const candidates = mxMol.list.filter((m) => !m.guided && !mxWrongSide(m));
+  for (let i = candidates.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [candidates[i], candidates[j]] = [candidates[j], candidates[i]]; }
+  candidates.slice(0, n).forEach((m, k) => {
+    const side = m.x < 0 ? -1 : 1;
+    m.guided = true;
+    m.remix = { t0: time + 0.5 + k * 0.12, from: null, side };
+  });
+  st.remixed = n;
+  return true;
+}
+
+function resetGame_MaxwellDemon(time) {
+  mxScatter();
+  mxState.memory = 0;
+  mxState.action = null;
+  mxState.flushAt = undefined;
+  mxState.won = false;
+  mxState.remixed = 0;
+  mxState.phase = 'running';
+  mxBrain.flushStart = -100;
+  mxHeat.list = [];
+  mxDoor.target = 0;
+}
+
+function getGame_MaxwellDemon() {
+  const st = mxState;
+  return {
+    wrong: mxMol.list.filter(mxWrongSide).length,
+    memory: st.memory, cap: mxBrain.cells.length,
+    full: st.memory >= mxBrain.cells.length,
+    busy: mxBusy(), won: st.won, remixed: st.remixed,
+  };
 }
 
 function mxWrongSide(m) { return m.fast ? m.x < 0 : m.x > 0; } // 빨강은 오른쪽, 파랑은 왼쪽이 제자리
 
-function mxStartAction(time) {
-  const list = mxMol.list.filter((m) => !m.guided);
-  const wrong = list.filter(mxWrongSide);
-  // 모두 제자리에 있으면 더 관찰할 필요가 없음 (기억도 그대로)
-  if (wrong.length === 0) return false;
-  const pool = wrong.length && Math.random() < MX_CONFIG.wrongBias ? wrong : list;
-  const mol = pool[Math.floor(Math.random() * pool.length)];
+function mxStartAction(time, mol) {
   const side = mol.x < 0 ? -1 : 1;
   mol.guided = true;
   mxState.action = {
@@ -498,7 +596,6 @@ function mxStartAction(time) {
     pass: mxWrongSide(mol),                    // 잘못된 쪽에 있으면 통과, 제자리면 돌려보냄
     stage: 'approach',
   };
-  return true;
 }
 
 function mxUpdateAction(time) {
@@ -535,13 +632,11 @@ function mxRelease(m, side) {
   m.side = side;          // 이제 이쪽 방의 분자
   m.guided = false;
   mxState.action = null;
-  mxDoor.target = 0;
 }
 
 function mxMemorize(time) {
   const st = mxState, n = mxBrain.cells.length;
   if (st.memory < n) { mxBrain.lit[st.memory] = time; st.memory++; }
-  if (st.memory >= n && st.flushAt === undefined) st.flushAt = time + 0.5; // 가득 참 -> 잠시 뒤 방출
 }
 
 // ---------------------------------------------------------
@@ -552,23 +647,15 @@ function updateExperiment_MaxwellDemon(time, deltaTime) {
   const dt = Math.min(1 / 30, Math.max(0, deltaTime || 0));
   const st = mxState, C = MX_CONFIG;
 
-  // 기억 방출: 퍼지고 바스러지며 열로, 뇌는 다시 흰색
-  if (st.flushAt !== undefined && time >= st.flushAt) {
-    mxBrain.flushStart = time;
-    st.memory = 0;
-    st.flushAt = undefined;
-    mxReleaseHeat(time);
-    st.nextAction = Math.max(st.nextAction, time + C.flush * 0.6);
-  }
-
-  // 악마의 관찰
-  if (st.phase === 'running' && !st.action && time >= st.nextAction) {
-    if (mxStartAction(time)) st.nextAction = time + C.actionInterval;
-    else st.nextAction = time + 0.5; // 모두 제자리: 관찰하지 않고 기다림
-  }
   mxUpdateAction(time);
+  mxUpdateRemix(time);
 
-  // 문
+  // 목표 완료: 잘못된 방에 남은 분자가 없고, 움직이는 중인 것도 없음
+  if (st.phase === 'running' && !st.won && !mxBusy() && mxMol.list.every((m) => !mxWrongSide(m))) st.won = true;
+
+  // 문 (다시 섞이는 중에도 열림)
+  if (mxMol.list.some((m) => m.remix && time >= m.remix.t0)) mxDoor.target = 1;
+  else if (!st.action) mxDoor.target = 0;
   mxDoor.open += (mxDoor.target - mxDoor.open) * Math.min(1, dt * 10);
   mxDoor.mesh.position.y = mxDoor.open * C.holeHalf * 0.9;
   mxDoor.mesh.scale.y = Math.max(0.0001, 1 - mxDoor.open * 0.9);
@@ -581,6 +668,32 @@ function updateExperiment_MaxwellDemon(time, deltaTime) {
   mxWriteBrain(time, dt);
   mxUpdateHeat(time, dt);
   mxUpdateBeam(time);
+}
+
+// 기억을 내보낸 대가: 골라진 분자들이 차례로 구멍을 지나 잘못된 방으로 되돌아감
+function mxUpdateRemix(time) {
+  mxMol.list.forEach((m) => {
+    const r = m.remix;
+    if (!r || time < r.t0) return;
+    if (!r.from) r.from = [m.x, m.y, m.z];
+    const t = time - r.t0;
+    const g = [r.side * 2.2, 0, 0], th = [-r.side * 2.4, 0, 0];
+    if (t < 0.35) {
+      const p = mxEase(t / 0.35);
+      m.x = r.from[0] + (g[0] - r.from[0]) * p; m.y = r.from[1] + (g[1] - r.from[1]) * p; m.z = r.from[2] + (g[2] - r.from[2]) * p;
+    } else if (t < 0.6) {
+      m.x = g[0] + (th[0] - g[0]) * mxEase((t - 0.35) / 0.25); m.y = 0; m.z = 0;
+    } else {
+      const side = -r.side;
+      const d = mxRandDir();
+      d[0] = Math.abs(d[0]) * side + side * 0.6;
+      const l = Math.hypot(...d);
+      m.vx = d[0] / l * m.speed; m.vy = d[1] / l * m.speed; m.vz = d[2] / l * m.speed;
+      m.side = side;
+      m.guided = false;
+      m.remix = null;
+    }
+  });
 }
 
 function mxMoveMolecules(dt) {
@@ -605,11 +718,12 @@ function mxWriteMolecules() {
   const A = mxMol.mesh.pos.array, F = mxMol.faces;
   mxMol.list.forEach((m, i) => {
     mxRotMatrix(m.axis, m.ang, mxRot);
+    const k2 = i === mxMol.hover ? 1.7 : 1; // 마우스를 올린 분자는 크게
     for (let f = 0; f < 4; f++) for (let k = 0; k < 3; k++) {
       const v = F[f][k], o = (i * 4 + f) * 9 + k * 3;
-      A[o] = m.x + mxRot[0] * v[0] + mxRot[1] * v[1] + mxRot[2] * v[2];
-      A[o + 1] = m.y + mxRot[3] * v[0] + mxRot[4] * v[1] + mxRot[5] * v[2];
-      A[o + 2] = m.z + mxRot[6] * v[0] + mxRot[7] * v[1] + mxRot[8] * v[2];
+      A[o] = m.x + (mxRot[0] * v[0] + mxRot[1] * v[1] + mxRot[2] * v[2]) * k2;
+      A[o + 1] = m.y + (mxRot[3] * v[0] + mxRot[4] * v[1] + mxRot[5] * v[2]) * k2;
+      A[o + 2] = m.z + (mxRot[6] * v[0] + mxRot[7] * v[1] + mxRot[8] * v[2]) * k2;
     }
   });
   mxMol.mesh.pos.needsUpdate = true;

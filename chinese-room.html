@@ -9,61 +9,80 @@
   canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
   body.started canvas { opacity: 1; }
 
-  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
-  #introText {
+  /* ---------- 심사관 말풍선 ---------- */
+  /* 위치는 스크립트가 눈(방) 바로 위로 맞춤 */
+  #examiner {
     position: fixed;
-    top: 50%;
+    top: 96px;
     left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(760px, 86vw);
-    color: beige;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     font-family: serif;
-    text-align: center;
-    font-size: 18px;
-    line-height: 1.9;
-    z-index: 5;
-    transition: opacity 0.6s ease;
-    pointer-events: none;
-    word-break: keep-all;
-  }
-
-  #caption {
-    position: fixed;
-    bottom: 34px;
-    left: 50%;
-    transform: translateX(-50%);
     color: beige;
-    font-family: serif;
-    font-size: 17px;
-    letter-spacing: 0.02em;
-    text-align: center;
-    z-index: 5;
     pointer-events: none;
-    white-space: nowrap;
     opacity: 0;
-    transition: opacity 1.2s ease;
+    transition: opacity 0.6s ease;
   }
-  body.started #caption { opacity: 1; }
+  body.started #examiner { opacity: 1; }
+  #examiner .ex-name { font-style: italic; font-size: 14px; color: rgba(245, 245, 220, 0.7); }
+  #examiner .ex-bubble {
+    position: relative;
+    width: 170px;
+    height: 150px;
+    border: 1px solid rgba(245, 245, 220, 0.55);
+    border-radius: 18px;
+    background: rgba(20, 22, 30, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* 말풍선 꼬리 (아래 가운데, 방 = 눈을 향함) */
+  #examiner .ex-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -9px;
+    left: calc(50% - 8px);
+    width: 16px;
+    height: 16px;
+    background: rgba(20, 22, 30, 0.95);
+    border-right: 1px solid rgba(245, 245, 220, 0.55);
+    border-bottom: 1px solid rgba(245, 245, 220, 0.55);
+    transform: rotate(45deg);
+  }
+  #examiner svg { width: 120px; height: 120px; }
+  #examiner .ex-text { font-size: 40px; font-style: italic; }
+  #examiner .ex-text.ok { color: #9fe0a8; font-size: 22px; }
+  #examiner .ex-text.no { color: #e8a08a; font-size: 22px; }
+  #examiner .ex-bar {
+    order: -1;               /* 이름 아래, 말풍선 위 */
+    width: 170px; height: 3px; background: rgba(245, 245, 220, 0.15); border-radius: 2px; overflow: hidden;
+  }
+  #examiner .ex-bar > div { height: 100%; width: 0; background: beige; }
+  #examiner .ex-bar.warn > div { background: #f0c48a; }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  중국어를 전혀 모르는 사람이 방에 들어간다.<br>
-  그에게 중국어를 전달해주면 그는 중국어의 모양만을 보고<br>
-  규칙집에 적힌 규칙을 따라 답을 출력한다.<br>
-  밖에서 보면 마치 중국어를 아는 것 처럼 보인다.<br>
-  뜻은 모른 채 시각적 형태와 그 계산에만 따른다면, 기호를 이해했다고 할 수 있을까. <br>
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">보여준 모양을 기억해, 같은 모양의 기호를 골라라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
 
-<div id="caption"></div>
+<!-- 심사관 말풍선 -->
+<div id="examiner">
+  <div class="ex-name">심사관</div>
+  <div class="ex-bubble"><div id="exContent"></div></div>
+  <div class="ex-bar" id="exBar"><div></div></div>
+</div>
 
 <!-- Three.js -->
 <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
 
-<!-- 공통 템플릿(제목바/목차) -->
+<!-- 공통 템플릿(제목바/목차/게임 UI) -->
 <script src="./template.js"></script>
 
 <!-- 함수 파일 -->
@@ -72,6 +91,18 @@
 
 <script>
   initPageTemplate({ title: "Thought Experiment 0 0 3 - the Chinese room argument", activeId: 3 });
+
+  // ---------- 3. 설명 화면에 띄울 실험 원문 / 질문 ----------
+  const ORIGINAL_HTML = `
+    어느 방 안에 중국어를 전혀 모르는 사람이 들어간다.<br>
+    방 안에는 중국어 문장을 입력받았을 때 어떤 중국어 문장을 출력해야 하는지를<br>
+    알려주는 매우 방대한 규칙집이 있다.<br>
+    참가자는 중국어의 의미는 전혀 이해하지 못하지만,<br>
+    규칙집에 적힌 절차에 따라 문자 모양만 비교하며 답을 찾아 그대로 베껴 쓸 수 있다.<br>
+    바깥의 중국인 심사관이 방 안의 참가자에게 중국어 문장의 질문을 보내면<br>
+    참가자는 규칙집을 보고 그 규칙만 따라 답을 써서 내보낸다.<br>
+    밖에서 보면 마치 중국어를 이해하는 것처럼 보인다.`;
+  const QUESTION = '우리는 그 문장을 이해할 수 있을까?';
 
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
@@ -97,11 +128,31 @@
     fitCamera();
   });
 
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+  initExperiment_ChineseRoom(scene, elapsedTime);
+
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 게임 시작 ----------
+  let started = false;
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameHud, #gameResult');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isUi(event.target)) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
+    if (event.button !== 0) return;
+    started = true;
+    const introEl = document.getElementById('startScreen');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    GameUI.initHud({ goal: '심사관이 말한 모양을 골라라' });
+    startGame_ChineseRoom(elapsedTime);
+  }, true);
+
   // ---------- 클릭(트라이포드 선택) / 마우스 오버 ----------
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const captionEl = document.getElementById('caption');
-
   function pickAt(event) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -110,17 +161,6 @@
     const hits = raycaster.intersectObjects(getPickables_ChineseRoom(), false);
     return hits.length ? hits[0] : null;
   }
-
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
-  let started = false;
-  const introTextEl = document.getElementById('introText');
-  function startMain() {
-    started = true;
-    introTextEl.style.opacity = '0';
-    setTimeout(() => { introTextEl.style.display = 'none'; }, 650);
-    document.body.classList.add('started');
-  }
-
   renderer.domElement.addEventListener('mousemove', (event) => {
     if (!started) return;
     const hit = pickAt(event);
@@ -129,45 +169,142 @@
     renderer.domElement.style.cursor = canPick ? 'pointer' : 'default';
   });
   renderer.domElement.addEventListener('mouseleave', () => setHover_ChineseRoom(null));
-
-  // 좌클릭 드래그 = 눈 구조물(0,0,0 중심) 회전, 거의 움직이지 않았으면 클릭
-  let downX = 0, downY = 0, downValid = false;
-  let dragging = false, lastX = 0, lastY = 0, spaceRotX = 0, spaceRotY = 0;
   renderer.domElement.addEventListener('mousedown', (event) => {
-    if (event.button !== 0) return;
-    if (!started) { startMain(); return; } // 첫 클릭은 시작에만 사용 (트라이포드 선택/회전 X)
-    downX = event.clientX; downY = event.clientY; downValid = true;
-    dragging = true; lastX = event.clientX; lastY = event.clientY;
-  });
-  window.addEventListener('mousemove', (event) => {
-    if (!dragging) return;
-    spaceRotY += (event.clientX - lastX) * 0.006;
-    spaceRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, spaceRotX + (event.clientY - lastY) * 0.006));
-    lastX = event.clientX; lastY = event.clientY;
-    setSpaceRotation_ChineseRoom(spaceRotX, spaceRotY);
-  });
-  window.addEventListener('mouseup', (event) => {
-    if (event.button !== 0 || !downValid) return;
-    downValid = false;
-    dragging = false;
-    if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) >= 5) return; // 드래그는 무시
+    if (!started || event.button !== 0) return;
     const hit = pickAt(event);
-    if (hit) handleRaycastHit_ChineseRoom(hit, elapsedTime);
+    if (hit) {
+      handleRaycastHit_ChineseRoom(hit, elapsedTime);
+      setHover_ChineseRoom(null);
+      renderer.domElement.style.cursor = 'default';
+    }
   });
 
-  // ---------- 초기화 ----------
-  const clock = new THREE.Clock();
-  let elapsedTime = 0;
-  initExperiment_ChineseRoom(scene, elapsedTime);
+  // ---------- 심사관 말풍선: 트라이포드 모양을 SVG로 그림 ----------
+  const exContent = document.getElementById('exContent');
+  const exBar = document.getElementById('exBar');
+  const LAYOUT = getTripodLayout_ChineseRoom(); // 한 변 1짜리 삼각형 12칸 배치
+  // 12칸 전체가 들어오도록 SVG 보기 영역 계산 (약간의 여백)
+  const VIEWBOX = (function () {
+    const r1 = 1 / Math.sqrt(3);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    LAYOUT.forEach((o) => {
+      const d = o.flip ? -1 : 1;
+      [[o.x, o.y + d * r1], [o.x - 0.5, o.y - d * r1 / 2], [o.x + 0.5, o.y - d * r1 / 2]].forEach((p) => {
+        x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, -p[1]); y1 = Math.max(y1, -p[1]);
+      });
+    });
+    const size = Math.max(x1 - x0, y1 - y0) * 1.12;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    return `${(cx - size / 2).toFixed(3)} ${(cy - size / 2).toFixed(3)} ${size.toFixed(3)} ${size.toFixed(3)}`;
+  })();
+  function patternSvg(pattern) {
+    const r1 = 1 / Math.sqrt(3);
+    let polys = '';
+    LAYOUT.forEach((o, i) => {
+      const d = o.flip ? -1 : 1;
+      const pts = [[o.x, o.y + d * r1], [o.x - 0.5, o.y - d * r1 / 2], [o.x + 0.5, o.y - d * r1 / 2]]
+        .map((p) => `${p[0].toFixed(3)},${(-p[1]).toFixed(3)}`).join(' ');
+      polys += pattern[i]
+        ? `<polygon points="${pts}" fill="#f2efe2"/>`
+        : `<polygon points="${pts}" fill="rgba(245,245,220,0.08)"/>`;
+    });
+    return `<svg viewBox="${VIEWBOX}">${polys}</svg>`;
+  }
+  let exKey = '';
+  // 말풍선을 눈(방) 바로 위에 놓음 (화면 크기가 바뀌어도 따라감)
+  const examinerEl = document.getElementById('examiner');
+  const eyeTop = new THREE.Vector3();
+  function placeExaminer() {
+    const anchor = getExaminerAnchor_ChineseRoom(eyeTop).project(camera);
+    const x = (anchor.x + 1) / 2 * window.innerWidth;
+    const y = (1 - anchor.y) / 2 * window.innerHeight;
+    const h = examinerEl.offsetHeight;
+    const bar = document.getElementById('topBar');
+    const minTop = bar ? bar.getBoundingClientRect().bottom + 14 : 90;
+    examinerEl.style.left = (x - examinerEl.offsetWidth / 2) + 'px';
+    examinerEl.style.top = Math.max(minTop, y - h - 16) + 'px';
+  }
+
+  function setExaminer(key, html) {
+    if (key === exKey) return;
+    exKey = key;
+    exContent.innerHTML = html;
+  }
+
+  // ---------- 목표 패널 / 말풍선 / 결과 ----------
+  let resultShown = false;
+  function retry() {
+    resultShown = false;
+    resetGame_ChineseRoom(elapsedTime);
+  }
+  function updateUi() {
+    if (!started) return;
+    const g = getGame_ChineseRoom(elapsedTime);
+    if (!g) return;
+    GameUI.setStatus(
+      `기회: <b>${Math.min(g.round, g.rounds)}</b> / ${g.rounds}<br>` +
+      `맞힘: <b>${g.correct}</b> / ${g.need}`
+    );
+
+    let barFrac = 0, barWarn = false;
+    if (g.phase === 'show') {
+      setExaminer('show' + g.round, patternSvg(g.pattern));
+      GameUI.setHint('모양을 기억하세요.');
+      barFrac = g.showLeft / 3;
+    } else if (g.phase === 'answer') {
+      setExaminer('ask' + g.round, '<div class="ex-text">?</div>');
+      GameUI.setHint(`같은 모양의 기호를 고르세요. (${Math.ceil(g.timeLeft)}초)`, g.timeLeft < 3);
+      barFrac = g.timeLeft / g.answerTime;
+      barWarn = g.timeLeft < 3;
+    } else if (g.phase === 'feedback' && g.last) {
+      if (g.last.correct) {
+        setExaminer('ok' + g.round, '<div class="ex-text ok">맞았다</div>');
+        GameUI.setHint('');
+      } else {
+        // 틀리면 정답 모양을 다시 보여줌
+        setExaminer('no' + g.round, patternSvg(g.pattern));
+        GameUI.setHint(g.last.timeout ? '시간 초과. 심사관이 원한 모양은 이것이었다.' : '틀렸다. 심사관이 원한 모양은 이것이었다.', true);
+      }
+    } else if (g.phase === 'wait') {
+      setExaminer('wait' + g.round, '');
+      GameUI.setHint('');
+    } else if (g.phase === 'done') {
+      GameUI.setHint('');
+      if (!resultShown) {
+        resultShown = true;
+        setTimeout(() => {
+          if (g.result === 'win') {
+            GameUI.showResult({
+              success: true,
+              title: '목표 완료: 심사관의 말에 3번 맞게 답했다',
+              original: ORIGINAL_HTML,
+              question: QUESTION,
+              onRetry: retry,
+            });
+          } else {
+            GameUI.showResult({
+              success: false,
+              title: '실패: 심사관이 당신을 의심하기 시작했다',
+              original: `5번의 기회 중 ${g.correct}번만 맞혔습니다. (3번을 맞혀야 합니다)`,
+              retryText: '다시 하기',
+              onRetry: retry,
+            });
+          }
+        }, 500);
+      }
+    }
+    exBar.classList.toggle('warn', barWarn);
+    exBar.firstElementChild.style.width = (Math.max(0, Math.min(1, barFrac)) * 100).toFixed(1) + '%';
+  }
 
   // ---------- 렌더 루프 ----------
   function animate() {
     requestAnimationFrame(animate);
     const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
     elapsedTime += deltaTime;
-
     updateExperiment_ChineseRoom(elapsedTime, deltaTime);
-    captionEl.textContent = getStatus_ChineseRoom(elapsedTime).caption;
+    updateUi();
+    placeExaminer();
     renderer.render(scene, camera);
   }
   animate();

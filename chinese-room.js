@@ -4,42 +4,61 @@
 // 필요: Three.js(전역 THREE), chinese-room-shape.js
 //
 // 구성
-//  - 왼쪽: 18색 큰 트라이포드(삼각형 12개) 세로 일렬
+//  - 왼쪽: 6색 큰 트라이포드(삼각형 12개) 세로 일렬 (움직이지 않고 제자리에 고정)
+//      트라이포드마다 12칸 중 일부만 채워진 고유한 "모양"을 가짐 (빈 칸은 희미하게)
 //  - 오른쪽: 안구 + 시신경 (삼각형 15,000개, 정점 색으로 물들임)
-//  - 클릭 -> 트라이포드가 날아가 안구로 빨려 들어감(12조각이 흩어져 녹아듦)
+//  - 게임: 심사관이 말풍선으로 트라이포드 모양 하나를 보여줌(잠시 뒤 사라짐)
+//         -> 10초 안에 왼쪽 열에서 같은 모양의 트라이포드를 클릭 (색은 상관없고 모양만 비교)
+//         -> 5번의 기회 중 3번 맞히면 목표 완료, 3번 틀리면 실패
+//  - 고르면 -> 트라이포드가 날아가 안구로 빨려 들어감(12조각이 흩어져 녹아듦)
 //         -> 안구가 같은 색으로 앞(각막)에서 뒤(시신경 끝)까지 물듦
 //         -> 색이 다시 시신경 끝 쪽으로 빠져나감
-//         -> 시신경 끝에서 나무 줄기(삼각형 150~300개, 매번 랜덤)가 자라남
+//         -> 맞혔을 때만 시신경 끝에서 나무 줄기가 자라남 (틀리면 눈이 붉게 물들었다 빠짐)
 //
 // 공개 함수
 //  initExperiment_ChineseRoom(scene, time)
 //  updateExperiment_ChineseRoom(time, deltaTime)
 //  getPickables_ChineseRoom()            -> 클릭 가능한 오브젝트 배열
-//  handleRaycastHit_ChineseRoom(hit, time) -> 사이클 시작하면 true
+//  handleRaycastHit_ChineseRoom(hit, time) -> 답을 고르면 true
 //  setHover_ChineseRoom(object|null)
-//  isBusy_ChineseRoom() / getStatus_ChineseRoom()
-//  setSpaceRotation_ChineseRoom(rotX, rotY) -> 눈 구조물·나무 회전(원점 기준)
+//  isBusy_ChineseRoom()
+//  startGame_ChineseRoom(time) / resetGame_ChineseRoom(time)
+//  getGame_ChineseRoom(time) -> HUD/말풍선용 상태
+//  getTripodLayout_ChineseRoom() -> 트라이포드 12칸의 2D 배치 {x, y, flip} (말풍선 그림용)
+//  getExaminerAnchor_ChineseRoom(vec3) -> 말풍선 기준점(안구 꼭대기, 월드 좌표)
 //  getCameraFit_ChineseRoom(aspect, fovDeg) -> {x, y, z} 카메라 위치(항상 (x,y,0)을 바라봄)
 // =========================================================
 
 const CR_TIMING = {
-  flight: 1.6,            // 트라이포드가 눈 앞까지 날아가는 시간
-  absorbDuration: 1.7,    // 12조각이 눈으로 빨려 들어가는 시간
-  tintDelay: 0.5,         // 흡수 시작 후 물들기 시작까지
-  tintDuration: 6.0,      // 눈이 완전히 물드는 데 걸리는 시간
-  hold: 1.2,              // 완전히 물든 채 머무는 시간
-  drainDuration: 4.5,     // 색이 빠져나가는 시간
-  treeStartFrac: 0.55,    // 빠져나가는 중 이 비율 지점에서 나무가 자라기 시작
-  treeDuration: 5.5,      // 나무가 다 자라는 데 걸리는 시간
+  flight: 0.9,            // 트라이포드가 눈 앞까지 날아가는 시간
+  absorbDuration: 1.0,    // 12조각이 눈으로 빨려 들어가는 시간
+  tintDelay: 0.2,         // 흡수 시작 후 물들기 시작까지
+  tintDuration: 1.8,      // 눈이 완전히 물드는 데 걸리는 시간
+  hold: 0.3,              // 완전히 물든 채 머무는 시간
+  drainDuration: 1.6,     // 색이 빠져나가는 시간
+  treeStartFrac: 0.2,     // 빠져나가는 중 이 비율 지점에서 나무가 자라기 시작
+  treeDuration: 2.6,      // 나무가 다 자라는 데 걸리는 시간
   soft: 0.3,              // 물드는 경계(파동 앞면)의 부드러움
   respawnDuration: 1.0,   // 사라진 트라이포드가 제자리에 다시 나타나는 시간
 };
 
+const CR_GAME = {
+  rounds: 5,              // 기회
+  need: 3,                // 이만큼 맞히면 목표 완료
+  showTime: 3.0,          // 심사관이 모양을 보여주는 시간 (그 뒤 사라짐 -> 기억해서 골라야 함)
+  answerTime: 10,         // 고르는 제한 시간
+  firstDelay: 1.2,        // 시작 후 첫 질문까지
+  timeoutPause: 1.4,      // 시간 초과 후 다음 질문까지
+  minFilled: 7,           // 트라이포드 모양: 12칸 중 채워진 칸 수 범위
+  maxFilled: 9,
+  wrongTint: [0.78, 0.24, 0.2],
+};
+
 const CR_LAYOUT = {
-  tripodCount: 18,
-  tripodTriangleSize: 0.85,
+  tripodCount: 6,
+  tripodTriangleSize: 1.3,   // 6개로 줄인 만큼 크게 -> 모양이 잘 보임
   columnX: -52,
-  columnSpacing: 3.4,
+  columnSpacing: 9,
   eyeX: -4,
   eyeRotY: 0.45,         // 각막이 카메라 쪽으로 살짝 돌아 있음
 };
@@ -54,7 +73,7 @@ const CR_EYE_PART_COLORS = [
 ];
 
 let crRoot = null;
-let crSpace = null;   // 눈 구조물 + 나무만 담은 그룹 (좌클릭 드래그로 회전, 트라이포드 열은 제외)
+let crSpace = null;   // 눈 구조물 + 나무를 담은 그룹
 let crEyeRoot = null;
 let crEye = null;
 let crTree = null;    // 현재(가장 최근) 나무
@@ -63,7 +82,9 @@ let crTripods = [];
 let crParticles = [];
 let crHoverIndex = -1;
 let crPrevTime = 0;
-let crState = { phase: 'idle', index: -1, t0: 0, times: null, color: new THREE.Color(1, 1, 1), treeGenerated: false };
+let crState = { phase: 'idle', index: -1, t0: 0, times: null, color: new THREE.Color(1, 1, 1), treeGenerated: false, grow: false };
+let crPatterns = [];  // 트라이포드마다 12칸 채움 여부 (true = 채워짐)
+let crGame = null;    // { phase, round, correct, wrong, target, phaseStart, last, result }
 
 function crClamp01(x) { return Math.min(1, Math.max(0, x)); }
 function crSmooth(x) { x = crClamp01(x); return x * x * (3 - 2 * x); }
@@ -86,11 +107,23 @@ function initExperiment_ChineseRoom(scene, time) {
   crRoot.updateMatrixWorld(true);
 }
 
-function crBuildTripods() {
+// 서로 다른 "모양" (트라이포드 수만큼): 12칸 중 7~9칸이 채워짐. 어느 두 모양도 최소 2칸 이상 다름
+function crGeneratePatterns(n) {
+  const out = [];
+  for (let tries = 0; out.length < n && tries < 20000; tries++) {
+    const filled = CR_GAME.minFilled + Math.floor(Math.random() * (CR_GAME.maxFilled - CR_GAME.minFilled + 1));
+    const idx = [...Array(12).keys()].sort(() => Math.random() - 0.5).slice(0, filled);
+    const pat = Array.from({ length: 12 }, (_, k) => idx.includes(k));
+    const ok = out.every((q) => q.reduce((d, v, k) => d + (v !== pat[k] ? 1 : 0), 0) >= 2);
+    if (ok) out.push(pat);
+  }
+  return out;
+}
+
+function crBuildTripodGeometry(pattern) {
   const s = CR_LAYOUT.tripodTriangleSize;
   const r1 = s / Math.sqrt(3);
   const offsets = crGenerateTripodOffsets(s);
-
   const positions = new Float32Array(offsets.length * 9);
   const colors = new Float32Array(offsets.length * 9);
   offsets.forEach((o, i) => {
@@ -100,7 +133,8 @@ function crBuildTripods() {
       [o.x - s / 2, o.y - dir * r1 / 2],
       [o.x + s / 2, o.y - dir * r1 / 2],
     ];
-    const shade = 0.80 + Math.random() * 0.20; // 삼각형마다 살짝 다른 밝기 -> 면이 구분되어 보임
+    // 채워진 칸은 밝게(삼각형마다 살짝 다른 밝기), 빈 칸은 아주 희미하게 -> 모양이 드러남
+    const shade = pattern[i] ? 0.80 + Math.random() * 0.20 : 0.1;
     for (let k = 0; k < 3; k++) {
       positions.set([v[k][0], v[k][1], 0], i * 9 + k * 3);
       colors.set([shade, shade, shade], i * 9 + k * 3);
@@ -109,13 +143,18 @@ function crBuildTripods() {
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geom;
+}
 
-  const proxyGeom = new THREE.CircleGeometry(1.7, 14); // 삼각형 사이 빈틈도 클릭되도록 하는 투명 판
+function crBuildTripods() {
+  crPatterns = crGeneratePatterns(CR_LAYOUT.tripodCount);
+
+  const proxyGeom = new THREE.CircleGeometry(CR_LAYOUT.tripodTriangleSize * 2, 14); // 삼각형 사이 빈틈도 클릭되도록 하는 투명 판
 
   for (let i = 0; i < CR_LAYOUT.tripodCount; i++) {
     const baseColor = new THREE.Color().setHSL(i / CR_LAYOUT.tripodCount, 0.85, 0.56);
     const material = new THREE.MeshBasicMaterial({ color: baseColor.clone(), vertexColors: true, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geom, material);
+    const mesh = new THREE.Mesh(crBuildTripodGeometry(crPatterns[i]), material);
 
     const proxy = new THREE.Mesh(proxyGeom, new THREE.MeshBasicMaterial({
       transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
@@ -296,11 +335,12 @@ function crUpdateTree(growth, alive) {
 // 클릭 처리
 // ---------------------------------------------------------
 function getPickables_ChineseRoom() {
+  if (!crGame || crGame.phase !== 'answer') return []; // 고르는 시간에만 클릭 가능
   return crTripods.filter((t) => t.available).map((t) => t.proxy);
 }
 
 function isBusy_ChineseRoom() {
-  return crState.phase !== 'idle';
+  return crState.phase !== 'idle' || !crGame || crGame.phase !== 'answer';
 }
 
 function setHover_ChineseRoom(object) {
@@ -312,11 +352,11 @@ function handleRaycastHit_ChineseRoom(hit, time) {
   if (isBusy_ChineseRoom()) return false;
   const idx = hit.object.userData.crIndex;
   if (!crTripods[idx].available) return false;
-  startCycle_ChineseRoom(idx, time);
+  crAnswer(idx, time);
   return true;
 }
 
-function startCycle_ChineseRoom(index, time) {
+function startCycle_ChineseRoom(index, time, correct) {
   const T = CR_TIMING;
   const t0 = time;
   const absorbStart = t0 + T.flight;
@@ -331,16 +371,18 @@ function startCycle_ChineseRoom(index, time) {
   crState = {
     phase: 'flight', index, t0,
     times: { absorbStart, tintStart, tintEnd, drainStart, drainEnd, treeStart, treeEnd, cycleEnd: Math.max(drainEnd, treeEnd) },
-    color: tp.baseColor.clone(),
+    color: correct ? tp.baseColor.clone() : new THREE.Color(...CR_GAME.wrongTint),
     treeGenerated: false,
+    grow: !!correct, // 맞혔을 때만 나무가 자람
   };
+  if (!correct) st_noTreeEnd(crState);
   crEye.tint.copy(crState.color);
 
   tp.flyStart.copy(tp.group.position);
   tp.flying = true;
   tp.available = false; // 사이클이 끝날 때까지 다시 고를 수 없음 (끝나면 제자리에 복원)
 
-  crParticles.forEach((p) => p.mesh.material.color.copy(crState.color));
+  crParticles.forEach((p) => p.mesh.material.color.copy(tp.baseColor));
   crUpdateEyeColors(0, 0, true);
 }
 
@@ -362,16 +404,16 @@ function updateExperiment_ChineseRoom(time, deltaTime) {
   crEyeRoot.rotation.x = Math.sin(time * 0.27) * 0.03;
   crRoot.updateMatrixWorld(true);
 
+  crUpdateGame(time);
   const st = crState;
   const tm = st.times;
 
   // ----- 트라이포드 -----
   crTripods.forEach((tp, i) => {
     const g = tp.group;
-    g.rotation.y = Math.sin(time * 0.7 + i * 0.6) * 0.45;
-    g.rotation.x = Math.sin(time * 0.5 + i) * 0.12;
+    g.rotation.set(0, 0, 0); // 왼쪽 트라이포드는 움직이지 않음
 
-    const hoverTarget = i === crHoverIndex && tp.available && st.phase === 'idle' ? 1.18 : 1;
+    const hoverTarget = i === crHoverIndex && tp.available && st.phase === 'idle' && crGame && crGame.phase === 'answer' ? 1.18 : 1;
     tp.hoverS += (hoverTarget - tp.hoverS) * Math.min(1, dt * 10);
 
     if (tp.flying) return; // 날아가는 중에는 아래에서 따로 처리
@@ -380,7 +422,7 @@ function updateExperiment_ChineseRoom(time, deltaTime) {
       g.visible = true;
       const appear = crSmooth((time - tp.spawnStart) / CR_TIMING.respawnDuration);
       g.scale.setScalar(Math.max(0.0001, appear) * tp.hoverS);
-      g.position.set(tp.homeX, tp.homeY + Math.sin(time * 0.9 + i * 0.8) * 0.12, 0);
+      g.position.set(tp.homeX, tp.homeY, 0);
       const k = tp.hoverS > 1.001 ? (tp.hoverS - 1) / 0.18 * 0.35 : 0;
       tp.material.color.copy(tp.baseColor).lerp(new THREE.Color(1, 1, 1), k);
     } else {
@@ -460,7 +502,7 @@ function updateExperiment_ChineseRoom(time, deltaTime) {
   crUpdateEyeColors(wIn, wOut, false);
 
   // ----- 나무 -----
-  if (time >= tm.treeStart && !st.treeGenerated) {
+  if (st.grow && time >= tm.treeStart && !st.treeGenerated) {
     st.treeGenerated = true;
     crGenerateTreeForCycle();
   }
@@ -476,32 +518,115 @@ function updateExperiment_ChineseRoom(time, deltaTime) {
     done.available = true;       // 사라졌던 트라이포드가 제자리에 다시 나타남
     done.spawnStart = time;
     st.phase = 'idle';
+    crAfterCycle(time);
   }
 }
 
 // ---------------------------------------------------------
 // 상태 텍스트 / 카메라 맞춤
 // ---------------------------------------------------------
-let crEverClicked = false;
-function getStatus_ChineseRoom(time) {
-  const st = crState;
-  if (st.phase !== 'idle') crEverClicked = true;
-  // 안내 문구는 두 가지뿐: 대기 중에만 표시하고, 사이클 진행 중에는 비움
-  let caption = '';
-  if (st.phase === 'idle') caption = crEverClicked ? '다른 기호를 클릭해보세요' : '기호를 클릭해보세요';
-  return { phase: st.phase, busy: st.phase !== 'idle', caption, treeCount: crTree ? crTree.count : 0, treesTotal: crTrees.length };
+// 틀렸을 때는 나무가 없으므로, 색이 다 빠지면 바로 끝
+function st_noTreeEnd(st) {
+  st.times.cycleEnd = st.times.drainEnd;
 }
 
-// 눈 구조물과 나무를 원점(0,0,0) 기준으로 회전 (왼쪽 트라이포드 열은 돌지 않는다)
-function setSpaceRotation_ChineseRoom(rotX, rotY) {
-  if (!crSpace) return;
-  crSpace.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotX));
-  crSpace.rotation.y = rotY;
+// ---------------------------------------------------------
+// 게임 진행: 질문(보여주기) -> 고르기(10초) -> 반응 -> 다음 질문
+// ---------------------------------------------------------
+function startGame_ChineseRoom(time) {
+  crGame = { phase: 'wait', round: 0, correct: 0, wrong: 0, target: -1, prevTarget: -1, phaseStart: time, nextAt: time + CR_GAME.firstDelay, last: null, result: null };
+}
+
+function resetGame_ChineseRoom(time) {
+  // 자란 나무를 모두 걷어내고 처음부터
+  crTrees.forEach((t) => { crEyeRoot.remove(t.mesh); t.mesh.geometry.dispose(); t.mesh.material.dispose(); });
+  crTrees = [];
+  crTree = null;
+  startGame_ChineseRoom(time);
+}
+
+function crNextQuestion(time) {
+  const g = crGame;
+  g.round++;
+  let t;
+  do { t = Math.floor(Math.random() * CR_LAYOUT.tripodCount); } while (t === g.prevTarget);
+  g.target = t;
+  g.prevTarget = t;
+  g.phase = 'show';
+  g.phaseStart = time;
+  g.last = null;
+}
+
+function crAnswer(index, time) {
+  const g = crGame;
+  const correct = index === g.target;
+  if (correct) g.correct++; else g.wrong++;
+  g.last = { correct, picked: index, timeout: false };
+  g.phase = 'feedback';
+  g.phaseStart = time;
+  startCycle_ChineseRoom(index, time, correct);
+}
+
+// 반응(눈/나무)이 끝난 뒤: 게임 종료 판정 또는 다음 질문
+function crAfterCycle(time) {
+  const g = crGame;
+  if (!g || g.phase !== 'feedback') return;
+  if (g.correct >= CR_GAME.need) { g.phase = 'done'; g.result = 'win'; return; }
+  if (g.wrong > CR_GAME.rounds - CR_GAME.need || g.round >= CR_GAME.rounds) { g.phase = 'done'; g.result = 'fail'; return; }
+  g.phase = 'wait';
+  g.nextAt = time + 0.5;
+}
+
+function crUpdateGame(time) {
+  const g = crGame;
+  if (!g) return;
+  if (g.phase === 'wait' && time >= g.nextAt) crNextQuestion(time);
+  else if (g.phase === 'show' && time - g.phaseStart >= CR_GAME.showTime) { g.phase = 'answer'; g.phaseStart = time; }
+  else if (g.phase === 'answer' && time - g.phaseStart >= CR_GAME.answerTime) {
+    // 시간 초과 = 틀림
+    g.wrong++;
+    g.last = { correct: false, picked: -1, timeout: true };
+    g.phase = 'feedback';
+    g.phaseStart = time;
+    g.timeoutUntil = time + CR_GAME.timeoutPause;
+  } else if (g.phase === 'feedback' && g.timeoutUntil && time >= g.timeoutUntil && crState.phase === 'idle') {
+    g.timeoutUntil = 0;
+    crAfterCycle(time);
+  }
+}
+
+function getGame_ChineseRoom(time) {
+  const g = crGame;
+  if (!g) return null;
+  return {
+    phase: g.phase,
+    round: g.round,
+    rounds: CR_GAME.rounds,
+    correct: g.correct,
+    wrong: g.wrong,
+    need: CR_GAME.need,
+    pattern: g.target >= 0 ? crPatterns[g.target] : null,
+    showLeft: g.phase === 'show' ? Math.max(0, CR_GAME.showTime - (time - g.phaseStart)) : 0,
+    timeLeft: g.phase === 'answer' ? Math.max(0, CR_GAME.answerTime - (time - g.phaseStart)) : 0,
+    answerTime: CR_GAME.answerTime,
+    last: g.last,
+    result: g.result,
+  };
+}
+
+// 심사관 말풍선을 놓을 기준점: 안구 꼭대기 (월드 좌표)
+function getExaminerAnchor_ChineseRoom(out) {
+  crEyeRoot.updateMatrixWorld(true);
+  return crEyeRoot.localToWorld(out.set(-3, CR_SHAPE_CONFIG.eye.R + 1, 0));
+}
+
+function getTripodLayout_ChineseRoom() {
+  return crGenerateTripodOffsets(1);
 }
 
 function getCameraFit_ChineseRoom(aspect, fovDeg) {
   const tanH = Math.tan((fovDeg * Math.PI / 180) / 2);
-  const minX = CR_LAYOUT.columnX - 3;
+  const minX = CR_LAYOUT.columnX - 3 - 26; // 왼쪽 위 목표 패널이 트라이포드 열을 가리지 않도록 여유
   const maxX = CR_LAYOUT.eyeX + 50;      // 시신경 끝 + 나무 가지
   const centerX = (minX + maxX) / 2;
   const halfW = (maxX - minX) / 2;

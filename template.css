@@ -115,3 +115,103 @@ body.menu-open #tocSidebar { transform: translateX(0); }
 .tocItem.active { color: beige; }
 .tocItem.disabled { color: #777; cursor: default; }
 .tocItem.disabled:hover { color: #777; }
+
+/* =========================================================
+   공통 게임 UI
+   ========================================================= */
+/* 목표 패널: 제목바 선 아래 왼쪽 */
+#gameHud {
+  position: fixed;
+  top: 92px;
+  left: 24px;
+  z-index: 10;
+  min-width: 230px;
+  max-width: 300px;
+  padding: 14px 16px;
+  background: rgba(20, 22, 30, 0.78);
+  border: 1px solid rgba(245, 245, 220, 0.18);
+  border-radius: 8px;
+  color: beige;
+  font-family: serif;
+  font-size: 14px;
+  line-height: 1.7;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: auto;
+}
+#gameHud.show { opacity: 1; }
+#gameHud .gh-goal { font-size: 16px; font-style: italic; margin-bottom: 6px; }
+#gameHud .gh-status { color: #ddd8c4; }
+#gameHud .gh-hint { margin-top: 6px; color: #b9b4a0; font-size: 13px; }
+#gameHud .gh-hint.warn { color: #f0c48a; }
+#gameHud .gh-action {
+  margin-top: 10px;
+  padding: 6px 14px;
+  border: 1px solid rgba(240, 196, 138, 0.7);
+  background: rgba(240, 196, 138, 0.12);
+  color: #f0c48a;
+  font-family: serif;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#gameHud .gh-action:hover { background: rgba(240, 196, 138, 0.25); }
+
+/* 성공/실패 화면: 화면 가운데 */
+#gameResult {
+  position: fixed;
+  inset: 0;
+  z-index: 12;            /* 목차 사이드바(15)와 토글 버튼(20)보다 아래 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 18, 0.8);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+#gameResult.show { opacity: 1; }
+#gameResult .gr-box {
+  width: min(760px, 86vw);
+  text-align: center;
+  color: beige;
+  font-family: serif;
+  word-break: keep-all;
+}
+#gameResult .gr-title { font-size: 26px; font-style: italic; margin-bottom: 22px; letter-spacing: 0.04em; }
+#gameResult.fail .gr-title { color: #e8a08a; }
+#gameResult .gr-original { font-size: 15px; line-height: 1.9; color: #d9d4c0; }
+#gameResult .gr-question { margin-top: 26px; font-size: 20px; font-style: italic; color: #f0c48a; line-height: 1.6; }
+#gameResult .gr-retry {
+  margin-top: 30px;
+  padding: 8px 22px;
+  border: 1px solid rgba(245, 245, 220, 0.5);
+  background: rgba(20, 22, 30, 0.8);
+  color: beige;
+  font-family: serif;
+  font-size: 15px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#gameResult .gr-retry:hover { background: rgba(60, 62, 75, 0.9); }
+
+/* ---------- 공통 시작 화면: 지시문 한 문장 + (화면을 클릭하세요) ----------
+   <div id="startScreen">
+     <div class="ss-line">지시문 한 문장</div>
+     <div class="ss-click">(화면을 클릭하세요)</div>
+   </div> */
+#startScreen {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(800px, 86vw);
+  color: beige;
+  font-family: serif;
+  text-align: center;
+  z-index: 5;
+  pointer-events: none;
+  word-break: keep-all;
+  transition: opacity 0.6s ease;
+}
+#startScreen .ss-line { font-size: 24px; font-style: italic; line-height: 1.6; }
+#startScreen .ss-click { margin-top: 22px; font-size: 14px; color: rgba(245, 245, 220, 0.55); letter-spacing: 0.05em; }

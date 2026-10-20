@@ -9,38 +9,14 @@
   canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
   body.started canvas { opacity: 1; }
 
-  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
-  #introText {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(800px, 86vw);
-    color: beige;
-    font-family: serif;
-    text-align: center;
-    font-size: 17px;
-    line-height: 1.9;
-    z-index: 5;
-    transition: opacity 0.6s ease;
-    pointer-events: none;
-    word-break: keep-all;
-  }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  두 종류의 기체의 혼합물로 차있는 고립된 방의 가운데 벽이 있어 두 공간으로 나누어져있다고 생각하자.
-  이 벽에는 문이 하나 있어서 악마가 방 밖에서 이 문을 열고 닫을 수 있다.<br>
-  <br>
-  악마가 원하는 것은 이 두 종류의 기체 분자를 양쪽 공간으로 분리하는 것인데,
-  악마스럽게 뛰어난 피지컬을 갖추고 있어서 분자 하나하나마다 문으로 다가오는 것을 확인할 수 있다.
-  따라서 문을 적당히 열고 닫는 것을 통해서 느린 분자는 왼쪽으로, 빠른 분자는 오른쪽으로 보내는 것이 가능하다.
-  시간이 지나면 느린 분자와 빠른 분자가 서로 분리되고,
-  초기상태에 비해 엔트로피가 감소했으므로 열역학 제2법칙을 위배하게 된다.<br>
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">빨간 분자는 오른쪽 방으로, 파란 분자는 왼쪽 방으로 분리하라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
 
 <!-- Three.js -->
@@ -103,20 +79,91 @@
   initExperiment_MaxwellDemon(scene, elapsedTime);
   fitCamera();
 
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남 ----------
+  // ---------- 완료 화면에 띄울 질문 (직접 입력해 주세요) ----------
+  const QUESTION = '관찰 또한 질량을 가지게 된다, 기억하지 않아도 그렇다.';
+  // ---------- 3. 설명 화면에 띄울 실험 원문 ----------
+  const ORIGINAL_HTML = `
+    두 종류의 기체의 혼합물로 차있는 고립된 방의 가운데 벽이 있어 두 공간으로 나누어져있다고 생각하자.
+    이 벽에는 문이 하나 있어서 악마가 방 밖에서 이 문을 열고 닫을 수 있다.<br><br>
+    악마가 원하는 것은 이 두 종류의 기체 분자를 양쪽 공간으로 분리하는 것인데,
+    악마스럽게 뛰어난 피지컬을 갖추고 있어서 분자 하나하나마다 문으로 다가오는 것을 확인할 수 있다.
+    따라서 문을 적당히 열고 닫는 것을 통해서 느린 분자는 왼쪽으로, 빠른 분자는 오른쪽으로 보내는 것이 가능하다.
+    시간이 지나면 느린 분자와 빠른 분자가 서로 분리되고,
+    초기상태에 비해 엔트로피가 감소했으므로 열역학 제2법칙을 위배하게 된다.`;
+
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 본 화면(게임)이 시작됨 ----------
   let started = false;
-  function isTemplateUi(target) {
-    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar');
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameHud, #gameResult');
   }
   window.addEventListener('mousedown', (event) => {
-    if (started || isTemplateUi(event.target) || event.button !== 0) return;
+    if (started || isUi(event.target) || event.button !== 0) return;
     started = true;
-    const introEl = document.getElementById('introText');
+    const introEl = document.getElementById('startScreen');
     introEl.style.opacity = '0';
     setTimeout(() => { introEl.style.display = 'none'; }, 650);
     document.body.classList.add('started');
     start_MaxwellDemon(elapsedTime);
+    GameUI.initHud({ goal: '분자를 분리해라' });
   });
+
+  // ---------- 낚기: 떠다니는 분자를 클릭 ----------
+  const ndc = { x: 0, y: 0 };
+  function toNdc(event) {
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.x = ((event.clientX - r.left) / r.width) * 2 - 1;
+    ndc.y = -((event.clientY - r.top) / r.height) * 2 + 1;
+    return r;
+  }
+  renderer.domElement.addEventListener('mousemove', (event) => {
+    if (!started) return;
+    const r = toNdc(event);
+    const i = pickMolecule_MaxwellDemon(ndc.x, ndc.y, camera, r.width, r.height);
+    const g = getGame_MaxwellDemon();
+    const can = i >= 0 && !g.full && !g.busy && !g.won;
+    setHover_MaxwellDemon(can ? i : -1);
+    renderer.domElement.style.cursor = can ? 'pointer' : 'default';
+  });
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    // 시작 클릭은 캔버스가 먼저 받지만 그때는 아직 started=false라 낚기로 이어지지 않음
+    if (!started || event.button !== 0) return;
+    const r = toNdc(event);
+    const i = pickMolecule_MaxwellDemon(ndc.x, ndc.y, camera, r.width, r.height);
+    const res = catchMolecule_MaxwellDemon(i, elapsedTime);
+    if (res === 'full') flashHint = elapsedTime;
+  });
+  let flashHint = -100;
+
+  // ---------- 목표 패널 갱신 / 완료 화면 ----------
+  let resultShown = false;
+  function updateHud() {
+    if (!started) return;
+    const g = getGame_MaxwellDemon();
+    GameUI.setStatus(
+      `잘못된 방에 있는 분자: <b>${g.wrong}</b>개<br>` +
+      `관측 기억: <b>${g.memory}</b> / ${g.cap}`
+    );
+    if (g.full) {
+      GameUI.setHint('기억이 가득 찼습니다. 기억을 내보내야 다시 낚을 수 있습니다. (내보내면 일부 분자가 다시 섞입니다)', true);
+      GameUI.setAction(g.busy ? null : '기억 내보내기', () => releaseMemory_MaxwellDemon(elapsedTime));
+    } else {
+      const recent = elapsedTime - flashHint < 1.2;
+      GameUI.setHint(recent ? '기억이 가득 찼습니다.' : '떠다니는 분자를 클릭해 낚으세요. 빨강(빠름)은 오른쪽, 파랑(느림)은 왼쪽 방으로 보내집니다.', recent);
+      GameUI.setAction(null);
+    }
+    if (g.won && !resultShown) {
+      resultShown = true;
+      setTimeout(() => {
+        GameUI.showResult({
+          success: true,
+          title: '목표 완료: 분자를 모두 분리했다',
+          original: ORIGINAL_HTML,
+          question: QUESTION,
+          onRetry: () => { resetGame_MaxwellDemon(elapsedTime); resultShown = false; },
+        });
+      }, 700);
+    }
+  }
 
   // ---------- 렌더 루프 ----------
   function animate() {
@@ -124,6 +171,7 @@
     const deltaTime = clock.getDelta(); // 프레임당 한 번만 호출
     elapsedTime += deltaTime;
     updateExperiment_MaxwellDemon(elapsedTime, deltaTime);
+    updateHud();
     renderer.render(scene, camera);
   }
   animate();

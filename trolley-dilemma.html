@@ -9,24 +9,6 @@
   canvas { display: block; opacity: 0; transition: opacity 1.2s ease; }
   body.started canvas { opacity: 1; }
 
-  /* 시작 화면 문구 (다른 페이지와 같은 스타일) */
-  #introText {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: min(760px, 86vw);
-    color: beige;
-    font-family: serif;
-    text-align: center;
-    font-size: 18px;
-    line-height: 1.9;
-    z-index: 5;
-    transition: opacity 0.6s ease;
-    pointer-events: none;
-    word-break: keep-all;
-  }
-
   /* 손 위 스톱워치 */
   #stopwatch {
     position: fixed;
@@ -43,24 +25,52 @@
     opacity: 0;
     transition: opacity 0.4s ease;
   }
+
+  /* 무리 아래 이름표 (누가 있는지) */
+  .groupLabel {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, 0);
+    color: beige;
+    font-family: serif;
+    font-size: 19px;
+    font-style: italic;
+    white-space: nowrap;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .groupLabel .gl-sub { display: block; font-size: 12px; font-style: normal; color: rgba(245, 245, 220, 0.55); margin-top: 3px; }
+  .groupLabel.hover { color: #fff6d8; text-shadow: 0 0 12px rgba(255, 240, 200, 0.35); }
+  .groupLabel.saved { color: #9fe0a8; }
+  .groupLabel.lost { color: #e8a08a; }
+
+  /* 설명 화면의 선택 기록 */
+  .tdSummary { margin: 4px auto 18px; border-collapse: collapse; font-size: 14px; color: #d9d4c0; }
+  .tdSummary td { padding: 3px 12px; text-align: left; }
+  .tdSummary td.saved { color: #9fe0a8; }
+  .tdSummary td.none { color: rgba(245, 245, 220, 0.5); font-style: italic; }
 </style>
 </head>
 <body>
 
-<div id="introText">
-  제동 장치가 망가진 기차, 누르면 한 명, 누르지 않으면 다섯 명.<br>
-  10초 안에 결정해야 한다. <br>
-  한 명은 수단일까, 아니면 다수를 위해 희생당해야 하는 존재일까.
-  <br>
-  (화면을 클릭하면 시작합니다)
+<!-- 1. 시작 화면: 지시문 한 문장 -->
+<div id="startScreen">
+  <div class="ss-line">기차가 오기 전, 5초 안에 누구를 살릴지 골라라</div>
+  <div class="ss-click">(화면을 클릭하세요)</div>
 </div>
 
-<div id="stopwatch">10.00</div>
+<div id="stopwatch">05.00</div>
+<div class="groupLabel" id="labelLeft"></div>
+<div class="groupLabel" id="labelRight"></div>
 
 <!-- Three.js -->
 <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
 
-<!-- 공통 템플릿(제목바/목차) -->
+<!-- 공통 템플릿(제목바/목차/게임 UI) -->
 <script src="./template.js"></script>
 
 <!-- 함수 파일 -->
@@ -69,6 +79,15 @@
 
 <script>
   initPageTemplate({ title: "Thought Experiment 0 0 4 - Trolley dilemma", activeId: 4 });
+
+  // ---------- 3. 설명 화면에 띄울 실험 원문 / 질문 ----------
+  const ORIGINAL_HTML = `
+    제동 장치가 망가진 기차가 선로 위를 달리고 있다.<br>
+    선로 위에는 5명의 사람이 있어 선로를 바꾸지 않으면 5명이 죽게 되고<br>
+    선로를 바꾸면 5명은 살지만 바꾼 선로에 있는 사람 1명은 죽게 된다.<br>
+    선로스위치는 당신 앞에 있다.<br>
+    스위치를 어떻게 할 것인가?`;
+  const QUESTION = '다수를 위해 희생시키던가, 혹은 수단을 부정하던가.';
 
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
@@ -87,7 +106,6 @@
   // z=0 평면에서 화면 끝(양옆 벽, 바닥) 위치 = 폭발한 삼각형이 튕기고 멈추는 기준
   function updateViewBounds() {
     const halfH = Math.tan((FOV * Math.PI / 180) / 2) * CAMERA_DIST;
-    // 상단 제목바(헤더) 아래 선을 z=0 평면의 y로 변환 -> 선로 끝 / 기차가 빠져나가는 선
     const bar = document.getElementById('topBar');
     const barBottomPx = bar ? bar.getBoundingClientRect().bottom + 8 : 0;
     const topY = halfH * (1 - 2 * barBottomPx / window.innerHeight);
@@ -100,80 +118,126 @@
     updateViewBounds();
   });
 
-  // ---------- 초기화 ----------
   const clock = new THREE.Clock();
   let elapsedTime = 0;
   initExperiment_TrolleyDilemma(scene, elapsedTime);
   updateViewBounds();
 
-  // ---------- 시작 화면: 첫 클릭 -> 문구가 사라지고 본 화면이 나타남, 카운트다운 시작 ----------
+  // ---------- 1 -> 2. 시작 화면 클릭 -> 지시문이 사라지고 첫 조건의 카운트다운 시작 ----------
   let started = false;
-  const introTextEl = document.getElementById('introText');
-  function startMain() {
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameHud, #gameResult');
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (started || isUi(event.target)) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
+    if (event.button !== 0) return;
     started = true;
-    introTextEl.style.opacity = '0';
-    setTimeout(() => { introTextEl.style.display = 'none'; }, 650);
+    const introEl = document.getElementById('startScreen');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
     document.body.classList.add('started');
+    GameUI.initHud({ goal: '누구를 살릴지 선택하라' });
     start_TrolleyDilemma(elapsedTime);
+  }, true);
+
+  // ---------- 손가락이 커서를 따라감 / 화면 왼쪽·오른쪽 공간을 눌러 고름 ----------
+  // 화면 가운데를 기준으로 왼쪽 공간 = 왼쪽을 살림, 오른쪽 공간 = 오른쪽을 살림, 아무것도 안 함 = 시간 초과
+  function sideOf(event) {
+    return event.clientX < window.innerWidth / 2 ? 'left' : 'right';
   }
-
-  // ---------- 손 클릭 / 마우스 오버 ----------
-  const raycaster = new THREE.Raycaster();
-  const pointer = new THREE.Vector2();
-
-  function pickAt(event) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(getPickables_TrolleyDilemma(), false);
-    return hits.length ? hits[0] : null;
-  }
-
-  renderer.domElement.addEventListener('mousemove', (event) => {
-    if (!started || dragging) return;
-    const can = pickAt(event) && isHandClickable_TrolleyDilemma(elapsedTime);
+  window.addEventListener('mousemove', (event) => {
+    setAim_TrolleyDilemma((event.clientX / window.innerWidth) * 2 - 1, -((event.clientY / window.innerHeight) * 2 - 1));
+    if (!started) return;
+    const can = isHandClickable_TrolleyDilemma(elapsedTime) && !isUi(event.target);
+    setHoverSide_TrolleyDilemma(can ? sideOf(event) : null);
     renderer.domElement.style.cursor = can ? 'pointer' : 'default';
   });
-
-  // 좌클릭 드래그 = 공간(0,0,0 중심) 회전, 거의 움직이지 않았으면 클릭(손 누르기)
-  let dragging = false, downValid = false;
-  let downX = 0, downY = 0, lastX = 0, lastY = 0, spaceRotX = 0, spaceRotY = 0;
+  renderer.domElement.addEventListener('mouseleave', () => setHoverSide_TrolleyDilemma(null));
   renderer.domElement.addEventListener('mousedown', (event) => {
-    if (event.button !== 0) return;
-    if (!started) { startMain(); return; } // 첫 클릭은 시작에만 사용
-    dragging = true; downValid = true;
-    downX = lastX = event.clientX; downY = lastY = event.clientY;
-  });
-  window.addEventListener('mousemove', (event) => {
-    if (!dragging) return;
-    spaceRotY += (event.clientX - lastX) * 0.006;
-    spaceRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, spaceRotX + (event.clientY - lastY) * 0.006));
-    lastX = event.clientX; lastY = event.clientY;
-    setSpaceRotation_TrolleyDilemma(spaceRotX, spaceRotY);
-  });
-  window.addEventListener('mouseup', (event) => {
-    if (event.button !== 0 || !downValid) return;
-    dragging = false; downValid = false;
-    if (Math.abs(event.clientX - downX) + Math.abs(event.clientY - downY) >= 5) return; // 드래그는 클릭 아님
-    const hit = pickAt(event);
-    if (hit && handleRaycastHit_TrolleyDilemma(hit, elapsedTime)) {
+    if (!started || event.button !== 0) return;
+    if (choose_TrolleyDilemma(sideOf(event), elapsedTime)) {
       renderer.domElement.style.cursor = 'default';
     }
   });
 
-  // ---------- 스톱워치 위치 (손 위 3D 지점을 화면 좌표로) ----------
+  // ---------- 스톱워치 / 이름표 위치 (3D 지점을 화면 좌표로) ----------
   const stopwatchEl = document.getElementById('stopwatch');
+  const labelLeftEl = document.getElementById('labelLeft');
+  const labelRightEl = document.getElementById('labelRight');
   const swVec = new THREE.Vector3();
+  function placeAt(el, vec) {
+    vec.project(camera);
+    el.style.left = ((vec.x + 1) / 2) * window.innerWidth + 'px';
+    el.style.top = ((1 - vec.y) / 2) * window.innerHeight + 'px';
+  }
   function updateStopwatch() {
     const sw = getStopwatch_TrolleyDilemma(elapsedTime);
     stopwatchEl.textContent = sw.text;
     stopwatchEl.style.opacity = started ? String(sw.opacity) : '0';
     const root = getRoot_TrolleyDilemma();
     root.updateMatrixWorld();
-    root.localToWorld(swVec.set(sw.x, sw.y, sw.z)).project(camera); // 공간 회전 반영
-    stopwatchEl.style.left = ((swVec.x + 1) / 2) * window.innerWidth + 'px';
-    stopwatchEl.style.top = ((1 - swVec.y) / 2) * window.innerHeight + 'px';
+    placeAt(stopwatchEl, root.localToWorld(swVec.set(sw.x, sw.y, sw.z)));
+  }
+
+  let labelKey = '';
+  function updateLabels(g) {
+    const a = getLabelAnchors_TrolleyDilemma();
+    placeAt(labelLeftEl, a.left);
+    placeAt(labelRightEl, a.right);
+    const show = started && !g.finished && ['ready', 'pressing', 'timeout', 'explode'].includes(g.phase);
+    labelLeftEl.style.opacity = labelRightEl.style.opacity = show ? '1' : '0';
+    // 고른 뒤에는 살린 쪽/희생된 쪽 색으로 표시
+    const c = g.choices.length > g.round ? g.choices[g.round] : null;
+    const hover = !c && g.choosing ? g.hoverSide : null;
+    const key = g.round + '|' + (c ? c.saved : '') + '|' + hover;
+    if (key === labelKey) return;
+    labelKey = key;
+    labelLeftEl.innerHTML = `${g.left}<span class="gl-sub">왼쪽을 누르면 살림</span>`;
+    labelRightEl.innerHTML = `${g.right}<span class="gl-sub">오른쪽을 누르면 살림</span>`;
+    const cls = (side) => 'groupLabel' + (c ? (c.saved === side ? ' saved' : ' lost') : (hover === side ? ' hover' : ''));
+    labelLeftEl.className = cls('left');
+    labelRightEl.className = cls('right');
+  }
+
+  // ---------- 목표 패널 / 3. 설명 화면 ----------
+  let resultShown = false;
+  function summaryHtml(choices) {
+    const rows = choices.map((c, i) => {
+      const savedName = c.saved === 'left' ? c.left : c.right;
+      const lostName = c.saved === 'left' ? c.right : c.left;
+      return `<tr><td>${i + 1}.</td>` +
+        (c.timeout
+          ? `<td class="none">고르지 않음</td><td>${savedName} 생존 · ${lostName} 희생</td>`
+          : `<td class="saved">${savedName}을 살림</td><td>${lostName} 희생</td>`) +
+        `</tr>`;
+    }).join('');
+    return `<table class="tdSummary">${rows}</table>`;
+  }
+  function updateHud() {
+    if (!started) return;
+    const g = getGame_TrolleyDilemma(elapsedTime);
+    updateLabels(g);
+    GameUI.setStatus(`선택: <b>${Math.min(g.choices.length, g.rounds)}</b> / ${g.rounds}`);
+    if (g.finished) {
+      GameUI.setHint('');
+      if (!resultShown) {
+        resultShown = true;
+        GameUI.showResult({
+          success: true,
+          title: '목표 완료: 6번의 선택을 마쳤다',
+          original: summaryHtml(g.choices) + ORIGINAL_HTML,
+          question: QUESTION,
+          onRetry: () => { resultShown = false; labelKey = ''; resetGame_TrolleyDilemma(elapsedTime); },
+        });
+      }
+      return;
+    }
+    if (g.choosing) {
+      GameUI.setHint(`화면 왼쪽/오른쪽을 눌러 살릴 쪽을 고르세요. 아무것도 하지 않으면 기차는 원래 선로(오른쪽)로 갑니다. (${g.timeLeft.toFixed(1)}초)`, g.timeLeft < 2);
+    } else {
+      GameUI.setHint('');
+    }
   }
 
   // ---------- 렌더 루프 ----------
@@ -183,6 +247,7 @@
     elapsedTime += deltaTime;
     updateExperiment_TrolleyDilemma(elapsedTime, deltaTime);
     updateStopwatch();
+    updateHud();
     renderer.render(scene, camera);
   }
   animate();

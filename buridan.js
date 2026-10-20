@@ -3,25 +3,28 @@
 // -----------------------------------------------------------
 // 필요: Three.js(전역 THREE), buridan-shape.js
 //
-// 당나귀는 끝내 "선택"에 도달하지 못한다.
-//  - 가운데 당나귀(삼각형 300개), 왼쪽 건초 트라이포드 / 오른쪽 물 트라이포드 (처음엔 1개씩)
-//  - 1초마다 트라이포드가 하나씩 붙음:
-//      홀수 번째 = 무작위 쪽, 짝수 번째 = 반대쪽  -> 두 번마다 다시 평형
-//  - 당나귀는 더 많은 쪽으로 한 걸음 향하고, 평형이면 멈춰서 양쪽을 번갈아 봄
+// 게임: 당나귀를 구하라
+//  - 가운데 당나귀(삼각형 300개), 왼쪽 건초 트라이포드 / 오른쪽 물 트라이포드 (처음엔 1개씩 = 평형)
+//  - 사용자가 건초(화면 왼쪽)나 물(화면 오른쪽)을 누르면 그쪽 더미에 트라이포드가 하나 붙음
+//    -> 더 많은 쪽으로 당나귀가 끌려감 (차이가 클수록 빠르게)
+//  - 붙은 트라이포드는 0.5초 뒤 사라짐 = 저절로 다시 평형
+//  - 평형일 때 당나귀는 망설이며 가운데로 되돌아감 -> 한쪽을 연타해야 끝까지 갈 수 있음
+//  - 30초 안에 당나귀가 어느 한쪽 더미에 닿으면 목표 완료 (먹거나 마심)
+//  - 30초가 지나면 당나귀는 바스러져 사라짐 (실패)
 //    (걸은 길은 땅 위에 삼각형으로 된 직선으로 남음)
-//  - 한 걸음이 짧아서 20초 안에는 절대 어느 쪽에도 닿지 못함
-//  - 20초가 지나면 당나귀는 바스러져 사라지고, 화면 아래에서 새 당나귀가 들어와 반복
 //
 // 공개 함수
 //  initExperiment_BuridanDonkey(scene, time)
 //  start_BuridanDonkey(time)
+//  choose_BuridanDonkey('hay' | 'water', time) -> 그쪽 더미에 트라이포드를 붙임 (게임 중일 때만 true)
+//  resetGame_BuridanDonkey(time)              -> 새 당나귀가 들어오고 다시 시작
 //  updateExperiment_BuridanDonkey(time, deltaTime)
-//  getStatus_BuridanDonkey(time) -> { phase, hay, water, life }
+//  getStatus_BuridanDonkey(time) -> { phase, hay, water, life, x, progress, result, reached }
 // =========================================================
 
 const BD_TIMING = {
-  addInterval: 1.0,     // 트라이포드가 붙는 간격
-  life: 20,             // 본 화면 시작(또는 새 당나귀 입장) 후 당나귀의 수명
+  restore: 0.5,         // 누른 뒤 이 시간이 지나면 붙은 트라이포드가 사라짐 (다시 평형)
+  life: 30,             // 본 화면 시작(또는 새 당나귀 입장) 후 당나귀의 수명 = 제한 시간
   crumble: 2.2,         // 바스러지는 시간
   enter: 2.6,           // 새 당나귀가 화면 아래에서 들어오는 시간
   tripodDrop: 0.45,
@@ -30,14 +33,13 @@ const BD_TIMING = {
 const BD_LAYOUT = {
   pileX: 28,            // 건초(왼쪽 -) / 물(오른쪽 +) 더미 위치
   donkeyScale: 0.8,     // 당나귀 크기 (축소)
-  step: 2.4,            // 더 많은 쪽으로 향하는 한 걸음 (헤매듯 크게 오감)
-  wander: 1.6,          // 평형일 때 제자리에서 서성이는 거리
-  zig: 2.6,             // 걸을 때마다 앞뒤(깊이, z)로도 비틀거리는 폭
-  zMin: -9,             // 땅 위에서 움직일 수 있는 깊이 범위 (z: 화면 안쪽 - / 바깥쪽 +)
-  zMax: 7,
-  maxReach: 18,         // 여기까지가 한계: 코끝(약 5) + 18 = 23 < 더미 안쪽 끝(약 23.9) -> 끝내 닿지 못함
-  walkSpeed: 9.0,       // 걷는 속도 (닿지 못하는 한계는 maxReach가 따로 지킴)
-  enterFromY: -18,
+  zig: 4.5,             // 걸을 때마다 앞뒤(깊이, z)로도 비틀거리는 폭
+  zMin: -13,             // 땅 위에서 움직일 수 있는 깊이 범위 (z: 화면 안쪽 - / 바깥쪽 +)
+  zMax: 11,
+  maxReach: 18.5,       // 여기까지 오면 코끝이 더미에 닿음 = 목표 완료
+  pullPerTripod: 3.4,   // 더미 차이 1개당 끌려가는 속도 (단위/초)
+  hesitate: 5.0,        // 평형일 때(또는 차이가 작을 때) 가운데로 되돌아가는 속도
+  enterFromZ: 30,       // 새 당나귀가 들어오는 출발점 (화면 아래쪽, 탑뷰 기준)
   trailSpacing: 0.7,
   trailSize: 0.6,
   tripodCols: 3,        // 한 층에 가로 3 x 깊이 2 = 6개, 그 위로 층층이 쌓임
@@ -58,6 +60,7 @@ let bdDonkey = null;
 let bdPiles = null;     // { hay: {...}, water: {...} }
 let bdTrail = null;
 let bdState = { phase: 'waiting' };
+let bdGame = { result: null, reached: 0, presses: 0 }; // result: null | 'win' | 'fail'
 
 function bdClamp01(x) { return Math.min(1, Math.max(0, x)); }
 function bdSmooth(x) { x = bdClamp01(x); return x * x * (3 - 2 * x); }
@@ -172,16 +175,23 @@ function bdAddTripod(pile, time, instant) {
   const mesh = new THREE.Mesh(bdPiles.geom, new THREE.MeshBasicMaterial({
     vertexColors: true, color: pile.color.clone(), side: THREE.DoubleSide,
   }));
-  const slot = bdSlotPosition(pile, pile.items.length);
+  // 비어 있는 가장 낮은 자리에 얹음 (사라진 자리를 다시 씀)
+  const used = new Set(pile.items.filter((it) => it.removeStart < 0).map((it) => it.slotIndex));
+  let si = 0;
+  while (used.has(si)) si++;
+  const slot = bdSlotPosition(pile, si);
   mesh.position.set(slot.x, slot.y, slot.z);
   mesh.rotation.y = Math.random() * Math.PI * 2;
   bdRoot.add(mesh);
-  pile.items.push({ mesh, slot, born: instant ? -100 : time, removeStart: -1 });
+  pile.items.push({ mesh, slot, slotIndex: si, born: instant ? -100 : time, removeStart: -1 });
 }
 
 function bdUpdatePiles(time) {
   ['hay', 'water'].forEach((k) => {
     const pile = bdPiles[k];
+    pile.items.forEach((it) => {
+      if (it.restoreAt !== undefined && it.removeStart < 0 && time >= it.restoreAt) it.removeStart = time; // 다시 평형
+    });
     pile.items = pile.items.filter((it) => {
       if (it.removeStart >= 0) {
         const f = 1 - bdSmooth((time - it.removeStart) / 0.8);
@@ -192,10 +202,11 @@ function bdUpdatePiles(time) {
       // 위에서 떨어져 붙음
       const p = bdClamp01((time - it.born) / BD_TIMING.tripodDrop);
       const e = bdEaseOut(p);
-      it.mesh.position.set(it.slot.x, it.slot.y + (1 - e) * 14, it.slot.z);
+      it.mesh.position.set(it.slot.x, it.slot.y + (1 - e) * 6, it.slot.z);
       it.mesh.rotation.y += 0.004; // 천천히 돌아서 입체가 드러남
       const flash = Math.max(0, 1 - (time - it.born - BD_TIMING.tripodDrop) / 0.5) * (p >= 1 ? 1 : 0);
-      it.mesh.material.color.copy(pile.color).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
+      const eat = bdGame.result === 'win' && bdGame.reached === pile.side ? 0.25 + 0.25 * Math.sin(time * 6) : 0; // 닿은 더미가 빛남
+      it.mesh.material.color.copy(pile.color).lerp(new THREE.Color(1, 1, 1), Math.max(flash * 0.5, eat));
       it.mesh.scale.setScalar(0.6 + 0.4 * e);
       return true;
     });
@@ -257,39 +268,31 @@ function bdResetCycle(time, entering) {
   d.crumbling = false;
   d.pos.array.set(d.rest);
   d.pos.needsUpdate = true;
-  bdState = { phase: entering ? 'enter' : 'alive', cycleStart: time, enterStart: time, adds: 0, lastSide: 0 };
+  bdState = { phase: entering ? 'enter' : 'alive', cycleStart: time, enterStart: time };
+  bdGame = { result: null, reached: 0, presses: 0 };
+}
+
+function resetGame_BuridanDonkey(time) {
+  bdResetCycle(time, true);
+  bdDonkey.group.position.z = BD_LAYOUT.enterFromZ;
 }
 
 function start_BuridanDonkey(time) {
   if (bdState.phase !== 'waiting') return;
-  bdState = { phase: 'alive', cycleStart: time, adds: 0, lastSide: 0 };
+  bdState = { phase: 'alive', cycleStart: time };
+  bdGame = { result: null, reached: 0, presses: 0 };
 }
 
-// 홀수 번째 = 무작위, 짝수 번째 = 직전의 반대쪽 -> 2번마다 평형
-function bdNextAdd(time) {
-  const st = bdState;
-  st.adds++;
-  const side = st.adds % 2 === 1 ? (Math.random() < 0.5 ? -1 : 1) : -st.lastSide;
-  st.lastSide = side;
-  bdAddTripod(side < 0 ? bdPiles.hay : bdPiles.water, time, false);
-
-  // 더 많은 쪽으로 한 걸음 (평형이면 그 자리에서 망설임)
-  const c = bdCounts();
-  const d = bdDonkey;
-  const L = BD_LAYOUT;
-  if (c.hay !== c.water) {
-    // 더 많은 쪽으로 크게 한 걸음, 앞뒤(깊이)로는 비틀거리며
-    const dir = c.hay > c.water ? -1 : 1;
-    d.targetX += dir * L.step;
-    d.targetZ += (Math.random() * 2 - 1) * L.zig;
-  } else {
-    // 평형: 어느 쪽도 고르지 못한 채 아무 방향으로나 서성임
-    const a = Math.random() * Math.PI * 2, len = L.wander * (0.6 + Math.random() * 0.6);
-    d.targetX += Math.cos(a) * len;
-    d.targetZ += Math.sin(a) * len;
-  }
-  d.targetX = Math.max(-L.maxReach, Math.min(L.maxReach, d.targetX));
-  d.targetZ = Math.max(L.zMin, Math.min(L.zMax, d.targetZ));
+// 사용자가 건초나 물을 고름 -> 그 더미에 트라이포드가 붙고, 0.5초 뒤 사라짐
+function choose_BuridanDonkey(which, time) {
+  if (bdState.phase !== 'alive' || bdGame.result) return false;
+  const pile = which === 'hay' ? bdPiles.hay : bdPiles.water;
+  bdAddTripod(pile, time, false);
+  pile.items[pile.items.length - 1].restoreAt = time + BD_TIMING.restore;
+  bdGame.presses++;
+  // 앞뒤(깊이)로 살짝 비틀거림
+  bdDonkey.targetZ = Math.max(BD_LAYOUT.zMin, Math.min(BD_LAYOUT.zMax, bdDonkey.z + (Math.random() * 2 - 1) * BD_LAYOUT.zig));
+  return true;
 }
 
 function bdStartCrumble(time) {
@@ -308,7 +311,7 @@ function bdStartCrumble(time) {
   bdState.phase = 'crumble';
   bdState.crumbleStart = time;
   // 더미의 추가분도 함께 사라짐 (처음 1개씩만 남김)
-  ['hay', 'water'].forEach((k) => bdPiles[k].items.forEach((it, i) => { if (i > 0) it.removeStart = time; }));
+  ['hay', 'water'].forEach((k) => bdPiles[k].items.forEach((it) => { if (it.restoreAt !== undefined && it.removeStart < 0) it.removeStart = time; }));
 }
 
 // ---------------------------------------------------------
@@ -376,50 +379,63 @@ function updateExperiment_BuridanDonkey(time, deltaTime) {
   const st = bdState, T = BD_TIMING, d = bdDonkey;
 
   // ----- 살아 있는 동안: 1초마다 트라이포드, 20초가 되면 바스러짐 -----
-  if (st.phase === 'alive') {
+  if (st.phase === 'alive' && !bdGame.result) {
     const t = time - st.cycleStart;
-    while (st.adds + 1 < T.life / T.addInterval && t >= (st.adds + 1) * T.addInterval) bdNextAdd(time);
-    if (t >= T.life) bdStartCrumble(time);
+    if (t >= T.life) { bdGame.result = 'fail'; bdStartCrumble(time); }
   }
 
-  // ----- 이동 / 방향 -----
+  // ----- 이동 / 방향: 더 많은 쪽으로 끌려가고, 평형이면 망설이며 가운데로 -----
   let walking = false;
-  if (st.phase === 'alive' || st.phase === 'waiting') {
-    const dx = d.targetX - d.x, dz = d.targetZ - d.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist > 0.01) {
-      const stepLen = Math.min(dist, BD_LAYOUT.walkSpeed * dt);
-      d.x += (dx / dist) * stepLen;
-      d.z += (dz / dist) * stepLen;
-      bdTrailMark(d.x, d.z, dx, dz);
+  if (st.phase === 'alive' && !bdGame.result) {
+    const L = BD_LAYOUT;
+    const c = bdCounts();
+    const imb = c.water - c.hay;                        // + 이면 물(오른쪽)이 더 많음
+    let v = imb * L.pullPerTripod;
+    if (Math.abs(d.x) > 0.05) v -= Math.sign(d.x) * L.hesitate; // 망설임: 가운데로 되돌아감
+    else if (imb === 0) { v = 0; d.x = 0; }
+    d.x = Math.max(-L.maxReach, Math.min(L.maxReach, d.x + v * dt));
+    const dz = d.targetZ - d.z;
+    d.z += Math.sign(dz) * Math.min(Math.abs(dz), 7 * dt);
+    if (Math.abs(v) > 0.4) {
       walking = true;
-      d.facingYaw = Math.atan2(-dz, dx); // 머리(+x)가 가는 방향을 보도록
+      bdTrailMark(d.x, d.z, Math.sign(v), dz);
+      d.facingYaw = Math.atan2(-dz * 0.3, Math.sign(v)); // 머리(+x)가 가는 방향을 보도록
+    } else {
+      d.targetZ += (0 - d.targetZ) * Math.min(1, dt); // 멈춰 있으면 앞뒤 흔들림이 가라앉음
+    }
+    if (Math.abs(d.x) >= L.maxReach) {
+      bdGame.result = 'win';
+      bdGame.reached = Math.sign(d.x);           // -1 = 건초, +1 = 물
+      bdGame.wonAt = time;
+      st.phase = 'eat';
     }
   }
 
   // 바라보는 방향: 걷는 중이면 가는 쪽, 멈춰 있으면 건초와 물을 번갈아 봄 (망설임)
   let yawTarget;
-  if (st.phase === 'enter') yawTarget = -Math.PI / 2 + 0.6;
+  if (st.phase === 'enter') yawTarget = Math.PI / 2; // 머리가 화면 위쪽(-z)을 향해 걸어 들어옴
+  else if (st.phase === 'eat') yawTarget = bdGame.reached > 0 ? 0 : Math.PI; // 닿은 더미를 향함
   else if (walking) yawTarget = d.facingYaw;
-  else yawTarget = -Math.PI / 2 + Math.sin(time * 2.2) * 0.65;
+  else yawTarget = Math.PI / 2 + Math.sin(time * 2.2) * 0.65; // 멈춰 있으면 건초와 물을 번갈아 봄
   let dy = yawTarget - d.yaw;                       // 가장 가까운 쪽으로 돌기
   while (dy > Math.PI) dy -= Math.PI * 2;
   while (dy < -Math.PI) dy += Math.PI * 2;
   d.yaw += dy * Math.min(1, dt * 5);
 
   // ----- 새 당나귀 입장 (화면 아래에서) -----
-  let y = 0;
+  let y = 0, zEnter = 0;
   if (st.phase === 'enter') {
     const p = bdClamp01((time - st.enterStart) / T.enter);
-    y = BD_LAYOUT.enterFromY * (1 - bdEaseOut(p));
+    zEnter = BD_LAYOUT.enterFromZ * (1 - bdEaseOut(p)); // 화면 아래에서 걸어 들어옴
     walking = true;
-    if (p >= 1) { st.phase = 'alive'; st.cycleStart = time; st.adds = 0; st.lastSide = 0; }
+    if (p >= 1) { st.phase = 'alive'; st.cycleStart = time; }
   }
 
   d.walk += ((walking ? 1 : 0) - d.walk) * Math.min(1, dt * 8);
   d.walkPhase += dt * 14 * d.walk; // 빨라진 걸음에 맞춰 다리도 빠르게
-  const bob = Math.abs(Math.sin(d.walkPhase)) * 0.18 * d.walk;
-  d.group.position.set(d.x, y + bob, d.z);
+  let bob = Math.abs(Math.sin(d.walkPhase)) * 0.18 * d.walk;
+  if (st.phase === 'eat') bob = -0.25 + 0.25 * Math.sin((time - bdGame.wonAt) * 5); // 먹고 마시는 끄덕임
+  d.group.position.set(d.x, y + bob, d.z + zEnter);
   d.group.rotation.y = d.yaw;
 
   // ----- 바스러짐 -> 새 당나귀 -----
@@ -427,8 +443,8 @@ function updateExperiment_BuridanDonkey(time, deltaTime) {
     const p = (time - st.crumbleStart) / T.crumble;
     bdTrail.scale = 1 - bdSmooth(p);
     if (p >= 1) {
-      bdResetCycle(time, true);
-      bdDonkey.group.position.y = BD_LAYOUT.enterFromY;
+      st.phase = 'dead'; // 실패: 다시 하기를 누를 때까지 그대로
+      bdDonkey.group.visible = false;
     }
   }
 
@@ -440,6 +456,16 @@ function updateExperiment_BuridanDonkey(time, deltaTime) {
 function getStatus_BuridanDonkey(time) {
   const c = bdCounts();
   const st = bdState;
-  const life = st.phase === 'alive' ? Math.max(0, BD_TIMING.life - (time - st.cycleStart)) : 0;
-  return { phase: st.phase, hay: c.hay, water: c.water, life, x: bdDonkey.x, z: bdDonkey.z };
+  let life = BD_TIMING.life;
+  if (st.phase === 'alive') life = Math.max(0, BD_TIMING.life - (time - st.cycleStart));
+  else if (st.phase === 'eat') life = Math.max(0, BD_TIMING.life - (bdGame.wonAt - st.cycleStart));
+  else if (st.phase === 'crumble' || st.phase === 'dead') life = 0;
+  return {
+    phase: st.phase, hay: c.hay, water: c.water, life, lifeMax: BD_TIMING.life,
+    x: bdDonkey.x, z: bdDonkey.z,
+    progress: bdDonkey.x / BD_LAYOUT.maxReach,   // -1 = 건초에 닿음, +1 = 물에 닿음
+    result: bdGame.result, reached: bdGame.reached, presses: bdGame.presses,
+    playing: st.phase === 'alive' && !bdGame.result,
+    finished: st.phase === 'dead' || (st.phase === 'eat' && time - bdGame.wonAt > 1.6),
+  };
 }
