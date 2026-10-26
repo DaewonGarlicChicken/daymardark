@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Thought Experiment ∞ - Infinite Mode</title>
+<link rel="stylesheet" href="./template.css" />
+<style>
+  /* 이 페이지(무한모드)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  canvas { display: block; opacity: 0; transition: opacity 0.8s ease; }
+  body.started canvas { opacity: 1; }
+  #startScreen a { pointer-events: auto; color: #f0c48a; text-decoration: none; font-style: italic; }
+  #startScreen a:hover { opacity: 0.7; }
+
+  /* ---------- 왼쪽 위: 단계 / 목숨 ---------- */
+  #infHud {
+    position: fixed;
+    top: 92px;
+    left: 24px;
+    z-index: 7;
+    color: beige;
+    font-family: serif;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    pointer-events: none;
+  }
+  #infHud.show { opacity: 1; }
+  #infHud .ih-stage { font-size: 15px; font-style: italic; letter-spacing: 0.12em; color: rgba(245, 245, 220, 0.75); }
+  #infHud .ih-stage b { font-size: 26px; font-weight: normal; color: beige; letter-spacing: 0.04em; margin-left: 4px; font-variant-numeric: tabular-nums; }
+  #infHud .ih-lives { margin-top: 8px; }
+  #infHud .life { border-left-width: 9px; border-right-width: 9px; border-bottom-width: 15px; margin: 0 4px 0 0; }
+
+  /* 목숨 = 삼각형 */
+  .life {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-bottom: 27px solid beige;
+    margin: 0 8px;
+    transition: border-bottom-color 0.3s ease;
+  }
+  .life.lost { border-bottom-color: rgba(245, 245, 220, 0.14); }
+  .life.breaking { animation: lifeBreak 0.9s ease; }
+  @keyframes lifeBreak {
+    0% { border-bottom-color: #e8a08a; transform: scale(1.35); }
+    20% { transform: translateX(-5px) rotate(-12deg) scale(1.2); }
+    40% { transform: translateX(5px) rotate(10deg); }
+    60% { transform: translateX(-3px) rotate(-6deg); border-bottom-color: #e8a08a; }
+    100% { border-bottom-color: rgba(245, 245, 220, 0.14); transform: none; }
+  }
+
+  /* ---------- 막간 화면: 단계 번호 / 목숨 / 다음 실험 (속도 UP 안내) ---------- */
+  #infInter {
+    position: fixed;
+    inset: 0;
+    z-index: 6;               /* 제목바(8)는 그대로 보임 */
+    background: #10131a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+  #infInter.show { opacity: 1; }
+  #infInter .ii-label { font-size: 15px; letter-spacing: 0.5em; font-style: italic; color: rgba(245, 245, 220, 0.6); margin-left: 0.5em; }
+  #infInter .ii-stage { font-size: 110px; font-style: italic; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  #infInter.show .ii-stage { animation: stagePop 0.5s ease; }
+  #infInter .ii-lives { margin: 18px 0 26px; }
+  #infInter .ii-next { font-size: 17px; font-style: italic; color: rgba(245, 245, 220, 0.8); }
+  #infInter .ii-next .in-num { color: rgba(245, 245, 220, 0.45); margin-right: 6px; }
+  #infInter .ii-speed { display: none; font-size: 64px; font-style: italic; color: #f0c48a; }
+  #infInter .ii-speed .is-sub { font-size: 20px; margin-top: 14px; color: beige; }
+  #infInter.speedOn .ii-main { display: none; }
+  #infInter.speedOn .ii-speed { display: block; animation: speedPop 0.6s ease; }
+  @keyframes stagePop { from { transform: scale(1.5); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes speedPop {
+    0% { transform: scale(0.6) rotate(-6deg); opacity: 0; }
+    60% { transform: scale(1.12) rotate(2deg); opacity: 1; }
+    100% { transform: none; }
+  }
+
+  /* ---------- 명령어: 처음엔 화면 가운데 크게 -> 게임이 시작되면 위로 작게 ---------- */
+  #infCommand {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 7;
+    color: beige;
+    font-family: serif;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: top 0.3s ease, transform 0.3s ease, opacity 0.2s ease;
+    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+  }
+  #infCommand.show { opacity: 1; }
+  #infCommand .ic-word { font-size: 74px; font-style: italic; letter-spacing: 0.04em; }
+  #infCommand.show:not(.top) .ic-word { animation: cmdPop 0.45s ease; }
+  #infCommand .ic-hint { margin-top: 10px; font-size: 17px; color: rgba(245, 245, 220, 0.8); transition: opacity 0.2s ease; }
+  #infCommand.top { top: 112px; transform: translate(-50%, -50%) scale(0.42); }
+  #infCommand.top .ic-hint { opacity: 0; }
+  @keyframes cmdPop {
+    0% { transform: scale(1.8) rotate(-4deg); opacity: 0; }
+    55% { transform: scale(0.94) rotate(1deg); opacity: 1; }
+    100% { transform: none; }
+  }
+
+  /* ---------- 성공 / 실패 ---------- */
+  #infFlash {
+    position: fixed;
+    top: 46%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 7;
+    font-family: serif;
+    font-size: 80px;
+    font-style: italic;
+    pointer-events: none;
+    opacity: 0;
+    text-shadow: 0 2px 22px rgba(0, 0, 0, 0.85);
+  }
+  #infFlash.show { opacity: 1; animation: flashPop 0.5s ease; }
+  #infFlash .if-why { font-size: 20px; margin-top: 6px; text-align: center; color: rgba(245, 245, 220, 0.85); white-space: nowrap; }
+  #infFlash.win { color: #f0c48a; }
+  #infFlash.fail { color: #e8a08a; }
+  @keyframes flashPop {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    60% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); }
+  }
+
+  /* ---------- 게임 오버 기록 ---------- */
+  .infOver .io-big { font-size: 22px; color: beige; }
+  .infOver .io-big b { font-size: 54px; font-weight: normal; font-style: italic; color: #f0c48a; margin-right: 6px; }
+  .infOver .io-sub { margin-top: 10px; color: rgba(245, 245, 220, 0.7); }
+  .infOver .io-new { color: #f0c48a; }
+</style>
+</head>
+<body>
+
+<!-- 1. 시작 화면 -->
+<div id="startScreen">
+  <div class="ss-line" id="ssLine">목숨 세 개로, 사고실험들을 끝없이 버텨라</div>
+  <div class="ss-click" id="ssClick">(화면을 클릭하세요)</div>
+</div>
+
+<!-- 왼쪽 위: 단계 / 목숨 -->
+<div id="infHud">
+  <div class="ih-stage">STAGE<b id="ihStage">1</b></div>
+  <div class="ih-lives" id="ihLives"></div>
+</div>
+
+<!-- 막간 화면 -->
+<div id="infInter">
+  <div class="ii-speed" id="iiSpeed"></div>
+  <div class="ii-main">
+    <div class="ii-label">STAGE</div>
+    <div class="ii-stage" id="iiStage">01</div>
+    <div class="ii-lives" id="iiLives"></div>
+    <div class="ii-next" id="iiNext"></div>
+  </div>
+</div>
+
+<!-- 명령어 / 성공·실패 -->
+<div id="infCommand"><div class="ic-word" id="icWord"></div><div class="ic-hint" id="icHint"></div></div>
+<div id="infFlash"></div>
+
+<!-- Three.js -->
+<script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+
+<!-- 공통 템플릿(제목바/목차/게임 UI/클리어 기록) -->
+<script src="./template.js"></script>
+
+<!-- 무한모드 (미니게임 8종 + 진행) -->
+<script src="./infinite-mode.js"></script>
+
+<script>
+  initPageTemplate({ title: 'Thought Experiment ∞ - Infinite Mode', activeId: INFINITE_MODE.id });
+
+  // ---------- 기본 씬 세팅 ----------
+  const scene = new THREE.Scene();
+  const FOV = 50;
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+
+  // 게임 상자(가로 64 x 세로 36)가 제목바 선 아래 남은 화면에 꽉 차도록 카메라 배치
+  const view = { halfH: 20, halfW: 35, camY: 0, ppu: 20 };
+  function fitCamera() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    const tanH = Math.tan((FOV * Math.PI / 180) / 2);
+    const bar = document.getElementById('topBar');
+    const fTop = bar ? (bar.getBoundingClientRect().bottom + 10) / window.innerHeight : 0.12;
+    const fBot = 14 / window.innerHeight;
+    const usable = 1 - fTop - fBot;
+    const dist = Math.max(18 / (tanH * usable), 32.5 / (tanH * camera.aspect)) * 1.02;
+    view.halfH = dist * tanH;
+    view.halfW = view.halfH * camera.aspect;
+    view.camY = -(fBot - fTop) * view.halfH;   // 상자 가운데(y=0)가 남은 화면의 가운데에 오도록
+    view.ppu = window.innerHeight / (2 * view.halfH);
+    camera.position.set(0, view.camY, dist);
+    camera.lookAt(0, view.camY, 0);
+  }
+  fitCamera();
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    fitCamera();
+  });
+
+  // 화면 좌표 -> 게임 상자 좌표 (z = 0 평면)
+  function toWorld(event) {
+    const nx = (event.clientX / window.innerWidth) * 2 - 1;
+    const ny = -(event.clientY / window.innerHeight) * 2 + 1;
+    return [nx * view.halfW, view.camY + ny * view.halfH];
+  }
+
+  // ---------- 진행 준비 ----------
+  const $ = (id) => document.getElementById(id);
+  InfiniteMode.init({
+    scene,
+    px: (n) => n / view.ppu,
+    dom: {
+      hud: $('infHud'), stage: $('ihStage'), lives: $('ihLives'),
+      inter: $('infInter'), interStage: $('iiStage'), interLives: $('iiLives'), interNext: $('iiNext'), interSpeed: $('iiSpeed'),
+      command: $('infCommand'), cmdWord: $('icWord'), cmdHint: $('icHint'), flash: $('infFlash'),
+    },
+  });
+
+  const clock = new THREE.Clock();
+  let elapsedTime = 0;
+
+  // ---------- 게임 오버: 몇 단계까지 통과했는지 ----------
+  InfiniteMode.onGameOver = (r) => {
+    GameUI.showResult({
+      success: false,
+      title: '게임 오버',
+      original:
+        `<div class="infOver">` +
+        `<div class="io-big"><b>${r.passed}</b>단계까지 통과했다</div>` +
+        `<div class="io-sub">성공한 게임 ${r.wins}개 · 최고 기록 ${r.best}단계` +
+        (r.newBest && r.passed > 0 ? ` <span class="io-new">(새 기록!)</span>` : '') + `</div>` +
+        (r.test ? `<div class="io-sub">확인용 주소로 시작해서 최고 기록에는 넣지 않았다</div>` : '') +
+        `</div>`,
+      retryText: '다시 하기',
+      onRetry: () => InfiniteMode.restart(elapsedTime),
+      extra: { text: '처음 화면으로', href: 'index.html' },
+    });
+  };
+
+  // 확인용 주소 옵션: infinite-mode.html?game=3&stage=21 -> 3번 게임만 21단계부터 (game 생략하면 전부)
+  const query = new URLSearchParams(window.location.search);
+  const startOpts = { only: Number(query.get('game')) || 0, stage: Number(query.get('stage')) || 1 };
+
+  // ---------- 1. 시작 화면 (모든 사고실험을 클리어해야 열림) ----------
+  const unlocked = GameProgress.allCleared();
+  if (!unlocked) {
+    $('ssLine').textContent = '모든 사고실험을 클리어하면 열린다';
+    $('ssClick').innerHTML = '<a href="index.html">처음 화면으로</a>';
+  }
+  let started = false;
+  function isUi(target) {
+    return target && target.closest && target.closest('#menuToggleBtn, #tocSidebar, #gameResult, #startScreen a');
+  }
+  window.addEventListener('pointerdown', (event) => {
+    if (started || !unlocked || isUi(event.target)) return;
+    event.stopImmediatePropagation(); // 첫 클릭은 시작에만 사용
+    if (event.button !== 0) return;
+    started = true;
+    const introEl = $('startScreen');
+    introEl.style.opacity = '0';
+    setTimeout(() => { introEl.style.display = 'none'; }, 650);
+    document.body.classList.add('started');
+    InfiniteMode.start(elapsedTime, startOpts);
+  }, true);
+
+  // ---------- 2. 게임 입력 ----------
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    if (!started || event.button !== 0) return;
+    const [wx, wy] = toWorld(event);
+    InfiniteMode.pointerDown(wx, wy);
+  });
+  renderer.domElement.addEventListener('pointermove', (event) => {
+    if (!started) return;
+    const [wx, wy] = toWorld(event);
+    InfiniteMode.pointerMove(wx, wy);
+    renderer.domElement.style.cursor = InfiniteMode.isPlaying() ? 'pointer' : 'default';
+  });
+
+  // ---------- 렌더 루프 ----------
+  function animate() {
+    requestAnimationFrame(animate);
+    const deltaTime = Math.min(0.1, clock.getDelta()); // 프레임당 한 번만 호출 (탭 전환 후 큰 값은 자름)
+    elapsedTime += deltaTime;
+    InfiniteMode.update(elapsedTime, deltaTime);
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+</body>
+</html>
