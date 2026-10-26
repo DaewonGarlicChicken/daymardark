@@ -115,6 +115,11 @@ body.menu-open #tocSidebar { transform: translateX(0); }
 .tocItem.active { color: beige; }
 .tocItem.disabled { color: #777; cursor: default; }
 .tocItem.disabled:hover { color: #777; }
+/* 클리어한 사고실험: 제목 뒤에 작은 표시 */
+.tocItem.cleared::after { content: ' \2713'; font-size: 13px; color: rgba(240, 196, 138, 0.75); }
+/* 모두 클리어하면 열리는 [무한모드] */
+.tocItem.tocInfinite { margin-top: 18px; border-top: 1px solid rgba(238, 238, 238, 0.15); color: #f0c48a; }
+.tocItem.tocInfinite.active { color: #f0c48a; }
 
 /* =========================================================
    공통 게임 UI
@@ -193,6 +198,17 @@ body.menu-open #tocSidebar { transform: translateX(0); }
   cursor: pointer;
 }
 #gameResult .gr-retry:hover { background: rgba(60, 62, 75, 0.9); }
+#gameResult .gr-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+#gameResult .gr-primary { border-color: rgba(240, 196, 138, 0.8); color: #f0c48a; }
+#gameResult .gr-unlock {
+  margin-top: 26px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #f0c48a;
+  animation: grUnlock 1.6s ease;
+}
+#gameResult .gr-unlock b { font-weight: normal; font-style: italic; }
+@keyframes grUnlock { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ---------- 공통 시작 화면: 지시문 한 문장 + (화면을 클릭하세요) ----------
    <div id="startScreen">
@@ -215,3 +231,4 @@ body.menu-open #tocSidebar { transform: translateX(0); }
 }
 #startScreen .ss-line { font-size: 24px; font-style: italic; line-height: 1.6; }
 #startScreen .ss-click { margin-top: 22px; font-size: 14px; color: rgba(245, 245, 220, 0.55); letter-spacing: 0.05em; }
+

@@ -141,6 +141,56 @@
   .infOver .io-big b { font-size: 54px; font-weight: normal; font-style: italic; color: #f0c48a; margin-right: 6px; }
   .infOver .io-sub { margin-top: 10px; color: rgba(245, 245, 220, 0.7); }
   .infOver .io-new { color: #f0c48a; }
+  /* ---------- 미니게임 위의 글자 요소: 원래 페이지와 같은 모양 ---------- */
+  #infLayer { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+  /* 중국어 방: 심사관 말풍선 */
+  .infExaminer {
+    position: fixed; display: flex; flex-direction: column; align-items: center; gap: 6px;
+    font-family: serif; color: beige; pointer-events: none;
+  }
+  .infExaminer .ex-name { font-style: italic; font-size: 14px; color: rgba(245, 245, 220, 0.7); }
+  .infExaminer .ex-bubble {
+    position: relative; width: 140px; height: 124px;
+    border: 1px solid rgba(245, 245, 220, 0.55); border-radius: 18px; background: rgba(20, 22, 30, 0.85);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .infExaminer .ex-bubble::after {
+    content: ''; position: absolute; bottom: -9px; left: calc(50% - 8px); width: 16px; height: 16px;
+    background: rgba(20, 22, 30, 0.95);
+    border-right: 1px solid rgba(245, 245, 220, 0.55); border-bottom: 1px solid rgba(245, 245, 220, 0.55);
+    transform: rotate(45deg);
+  }
+  .infExaminer svg { width: 100px; height: 100px; display: block; }
+  .infExaminer .ex-text { font-size: 40px; font-style: italic; }
+  .infExaminer .ex-text.ok { color: #9fe0a8; font-size: 22px; }
+  .infExaminer .ex-bar { order: -1; width: 140px; height: 3px; background: rgba(245, 245, 220, 0.15); border-radius: 2px; overflow: hidden; }
+  .infExaminer .ex-bar > div { height: 100%; width: 0; background: beige; }
+  .infExaminer .ex-bar.warn > div { background: #f0c48a; }
+  /* 트롤리 딜레마: 손 위 스톱워치 / 무리 아래 이름표 */
+  .infStopwatch {
+    position: fixed; transform: translate(-50%, -100%); color: beige; font-family: serif; font-size: 30px;
+    letter-spacing: 0.06em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .infGroupLabel {
+    position: fixed; transform: translate(-50%, 0); color: beige; font-family: serif; font-size: 19px;
+    font-style: italic; white-space: nowrap; text-align: center; transition: color 0.2s ease;
+  }
+  .infGroupLabel .gl-sub { display: block; font-size: 13px; font-style: normal; color: rgba(245, 245, 220, 0.55); margin-top: 3px; }
+  .infGroupLabel.hover .gl-sub { color: #fff6d8; text-shadow: 0 0 12px rgba(255, 240, 200, 0.35); }
+  .infGroupLabel.saved .gl-sub { color: #9fe0a8; }
+  .infGroupLabel.lost .gl-sub { color: #e8a08a; }
+  /* 뷔리당의 당나귀: 건초 / 물 이름표 */
+  .infSideLabel {
+    position: fixed; bottom: 52px; color: beige; font-family: serif; font-size: 20px; font-style: italic; opacity: 0.8;
+    transition: color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  }
+  .infSideLabel.left { left: 12vw; }
+  .infSideLabel.right { right: 12vw; }
+  .infSideLabel.hit { color: #fff6d8; transform: scale(1.12); opacity: 1; }
+  /* 양자 자살과 불멸: 살아남은 이유 */
+  .infFigLabel {
+    position: fixed; transform: translate(-50%, -100%); color: beige; font-family: serif; font-size: 15px; white-space: nowrap;
+  }
 </style>
 </head>
 <body>
@@ -178,6 +228,20 @@
 <!-- 공통 템플릿(제목바/목차/게임 UI/클리어 기록) -->
 <script src="./template.js"></script>
 
+<!-- 8개 사고실험 페이지의 도형/색/설정 (무한모드가 그대로 가져다 씀) -->
+<script src="./theseus-galley.js"></script>
+<script src="./boltzmann-brain-shape.js"></script>
+<script src="./boltzmann-brain-scene.js"></script>
+<script src="./chinese-room-shape.js"></script>
+<script src="./chinese-room.js"></script>
+<script src="./trolley-shape.js"></script>
+<script src="./trolley.js"></script>
+<script src="./monkey.js"></script>
+<script src="./buridan-shape.js"></script>
+<script src="./buridan.js"></script>
+<script src="./quantum.js"></script>
+<script src="./maxwell.js"></script>
+
 <!-- 무한모드 (미니게임 8종 + 진행) -->
 <script src="./infinite-mode.js"></script>
 
@@ -187,14 +251,14 @@
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
   const FOV = 50;
-  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 5, 1000); // 앞쪽 경계를 멀리 둬서 깊이 정밀도를 높임
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
   document.body.appendChild(renderer.domElement);
 
   // 게임 상자(가로 64 x 세로 36)가 제목바 선 아래 남은 화면에 꽉 차도록 카메라 배치
-  const view = { halfH: 20, halfW: 35, camY: 0, ppu: 20 };
+  const view = { halfH: 20, halfW: 35, camY: 0, ppu: 20, dist: 45 };
   function fitCamera() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -208,6 +272,7 @@
     view.halfW = view.halfH * camera.aspect;
     view.camY = -(fBot - fTop) * view.halfH;   // 상자 가운데(y=0)가 남은 화면의 가운데에 오도록
     view.ppu = window.innerHeight / (2 * view.halfH);
+    view.dist = dist;
     camera.position.set(0, view.camY, dist);
     camera.lookAt(0, view.camY, 0);
   }
@@ -229,6 +294,7 @@
   InfiniteMode.init({
     scene,
     px: (n) => n / view.ppu,
+    view,
     dom: {
       hud: $('infHud'), stage: $('ihStage'), lives: $('ihLives'),
       inter: $('infInter'), interStage: $('iiStage'), interLives: $('iiLives'), interNext: $('iiNext'), interSpeed: $('iiSpeed'),
@@ -263,6 +329,7 @@
 
   // ---------- 1. 시작 화면 (모든 사고실험을 클리어해야 열림) ----------
   const unlocked = GameProgress.allCleared();
+  var INFINITE_PAGE_LOCKED = !unlocked; // 잠긴 화면에서 ← → ← → B를 입력하면 새로고침해서 열림
   if (!unlocked) {
     $('ssLine').textContent = '모든 사고실험을 클리어하면 열린다';
     $('ssClick').innerHTML = '<a href="index.html">처음 화면으로</a>';

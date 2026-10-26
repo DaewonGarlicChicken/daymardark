@@ -77,6 +77,18 @@
     color: #6c6a63;
     cursor: default;
   }
+  /* 모든 사고실험을 클리어하면 목록 맨 밑에 열리는 [무한모드] */
+  #expList a.infiniteItem {
+    margin-top: 18px;
+    color: #f0c48a;
+  }
+  /* 방금 열렸을 때: 천천히 떠오르며 빛남 */
+  #expList a.infiniteItem.reveal { animation: infReveal 2.4s ease; }
+  @keyframes infReveal {
+    0% { opacity: 0; letter-spacing: 0.3em; text-shadow: 0 0 0 rgba(240, 196, 138, 0); }
+    60% { opacity: 1; text-shadow: 0 0 18px rgba(240, 196, 138, 0.8); }
+    100% { letter-spacing: 0.02em; text-shadow: 0 0 0 rgba(240, 196, 138, 0); }
+  }
 </style>
 <script>
   setTimeout(() => {
@@ -91,7 +103,7 @@
   <h1 id="title">이상한 사고실험실</h1>
   <div id="content">
     <h1 class="subtitle">사고실험, 지식의 허영심을 드러내기에 좋은 요소.</h1>
-    <h1 class="subtitle">플레이 한다면 당신도 개념은 알게 될 겁니다.</h1>
+    <h1 class="subtitle">이미지의 이해, 구상, 발현, 개시.</h1>
     <span id="loading">불러오는 중 . . .</span>
     <div id="expList"></div>
   </div>
@@ -113,6 +125,20 @@
         expListEl.appendChild(span);
       }
     });
+
+    // 8개를 모두 클리어했으면 맨 밑에 [무한모드]
+    function addInfiniteItem(reveal) {
+      if (expListEl.querySelector('.infiniteItem')) return;
+      const a = document.createElement('a');
+      a.href = INFINITE_MODE.href;
+      a.textContent = INFINITE_MODE.title;
+      a.className = 'infiniteItem';
+      if (reveal) a.classList.add('reveal'); // 방금 열렸으면 떠오르는 연출
+      expListEl.appendChild(a);
+    }
+    if (GameProgress.allCleared()) addInfiniteItem(GameProgress.consumeJustUnlocked());
+    // 숨은 커맨드(← → ← → B)로 열렸을 때
+    window.addEventListener('tel-unlocked', () => addInfiniteItem(true));
   </script>
 </body>
 </html>
