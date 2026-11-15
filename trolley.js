@@ -84,7 +84,7 @@ const TD_LAYOUT = {
 const TD_COLORS = {
   skin: [0.93, 0.74, 0.58],
   train: [0.62, 0.66, 0.72],
-  tripod: 0xefe6d2,
+  tripod: 0x34312b, // 사람(트라이포드): 종이 위 먹색
   explode: [0.86, 0.12, 0.10], // 폭발한 작은 삼각형 (붉은색) -> 선로가 되면 원래 트라이포드 색으로
 };
 

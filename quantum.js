@@ -209,7 +209,7 @@ function qsBuildThirdPerson() {
     for (let k = 0; k < 3; k++) centers[i * 3 + k] = (t.p[0][k] + t.p[1][k] + t.p[2][k]) / 3;
     const d = (t.n[0] * L[0] + t.n[1] * L[1] + t.n[2] * L[2]) / ll;
     const sh = 0.5 + 0.5 * (0.5 + 0.5 * d);
-    for (let k = 0; k < 3; k++) colors.set([0.93 * sh, 0.91 * sh, 0.86 * sh], i * 9 + k * 3);
+    for (let k = 0; k < 3; k++) colors.set([0.13 * sh, 0.12 * sh, 0.105 * sh], i * 9 + k * 3); // '나': 종이 위 먹색
   });
 
   // 빨간 삼각형 모양(공유)
@@ -367,7 +367,7 @@ function qsFlash(time) {
     const sp = 5 + Math.random() * 7;
     S.vx[i] = Math.cos(a) * sp; S.vy[i] = Math.sin(a) * sp * 0.7;
     S.ang[i] = Math.random() * Math.PI * 2; S.av[i] = (Math.random() - 0.5) * 8;
-    const c = 0.75 + Math.random() * 0.25;
+    const c = 0.03 + Math.random() * 0.08; // 다른 갈래들: 먹색 조각
     for (let k = 0; k < 3; k++) qsFP.scatter.col.array.set([c, c, c * 0.88], i * 9 + k * 3);
   }
   qsFP.scatter.col.needsUpdate = true;
@@ -657,7 +657,7 @@ function qsWriteLine(time) {
   write(T.lit, n, (i) => {
     const age = time - (T.litTimes[i] || -100);
     const g = Math.max(0, 1 - age / 0.8);
-    return [1, 0.86 + 0.14 * g, 0.45 + 0.55 * g];
+    return [0.78, 0.25 + 0.3 * g, 0.04 + 0.3 * g]; // 살아남을 때마다 하나씩: 호박색 (막 켜질 땐 밝게)
   }, (i) => {
     const age = time - (T.litTimes[i] || -100);
     return 1.15 + 0.6 * Math.max(0, 1 - age / 0.5);

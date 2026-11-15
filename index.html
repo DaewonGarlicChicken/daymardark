@@ -1,144 +1,255 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head> 
+<head>
 <meta charset="UTF-8" />
 <title>이상한 사고실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Nanum+Gothic+Coding:wght@400;700&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <style>
+  /* 처음 화면: 줄 그은 크림색 종이 전체 + 사고실험마다 색이 다른 폴더를 겹쳐 쌓은 서랍 */
+  :root {
+    --paper: #efe9dc;
+    --paper-hi: #f7f3ea;
+    --ink: #24221e;
+    --ink-soft: #6f6a5f;
+    --blue: #b7cddc;
+    --blue-ink: #4f7390;
+    --butter: #ece3a6;
+    --pink: #dcb0ad;
+    --salmon: #e2a487;
+    --kraft: #c9a07a;
+    --red: #b5523f;
+    --mono: 'Courier Prime', 'Nanum Gothic Coding', monospace;
+    --kmono: 'Nanum Gothic Coding', 'Courier Prime', monospace;
+    --serif: 'Nanum Myeongjo', serif;
+    --hand: 'Nanum Pen Script', cursive;
+  }
   html, body {
     height: 100%;
-    margin: 0; 
+    margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
     overflow: hidden;
-    background: #10131a;
-    font-family: system-ui, sans-serif;
+    color: var(--ink);
+    font-family: var(--kmono);
+    background-color: var(--paper);
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, rgba(120, 108, 86, 0.18) 31px, rgba(120, 108, 86, 0.18) 32px);
   }
-  #title {
-    font-style: italic; 
-    color: beige;
-    text-align: center;
-    font-family: serif;
-    position: absolute;
-    top: 10%;
-    align-self: center;
-  
-  }
-  /* 제목 아래 문구들(부제 + 목록)은 화면 위에서 32% 지점부터 시작해 아래로 이어짐 */
-  #content {
-    position: absolute;
-    top: 32%;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .subtitle {
-    font-style: italic; 
-    color: beige;
-    text-align: center;
-    font-size: 10pt;
-    font-family: serif;
-    font-weight: lighter;
-    margin: 0 0 14px 0;
-  }
-  #loading {
-    color: beige;
+  /* 종이 결 */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
     opacity: 0.3;
-    animation: blink 1s infinite;
-    text-align: center;
-    margin-top: 30px;
-  }
-  @keyframes blink {
-    50% { opacity: 1; }
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.4  0 0 0 0 0.36  0 0 0 0 0.3  0 0 0 0.45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    z-index: 50;
   }
 
-  #expList {
-    display: none;
-    flex-direction: column;
+  /* ---------- 위: 표지 ---------- */
+  #cover {
+    position: absolute;
+    top: 7vh;
+    left: 7vw;
+    right: 7vw;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 30px;
+    flex-wrap: wrap;
+  }
+  #cover .vol { font-family: var(--mono); font-size: 13px; letter-spacing: 0.24em; color: var(--ink-soft); }
+  #title {
+    margin: 10px 0 0;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: clamp(38px, 6vw, 76px);
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+  .subtitles { text-align: right; }
+  .subtitle {
+    margin: 0;
+    font-family: var(--kmono);
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.9;
+    color: var(--ink-soft);
+  }
+  /* 모두 클리어하면 표지 오른쪽 아래에 붙는 색인 카드 두 장 */
+  #extras { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; min-height: 40px; }
+  #extras a {
+    display: inline-block;
+    padding: 8px 16px 7px;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--butter);
+    box-shadow: 1px 3px 8px rgba(0, 0, 0, 0.15);
+    transform: rotate(-2deg);
+    transition: transform 0.2s ease;
+  }
+  #extras a.records { background: var(--blue); transform: rotate(1.5deg); }
+  #extras a:hover { transform: rotate(0) translateY(-3px); }
+  #extras a.reveal { animation: extraIn 1.6s ease both; }
+  #extras a.records.reveal { animation-delay: 0.35s; }
+  @keyframes extraIn { 0% { opacity: 0; transform: translateY(14px) rotate(-8deg); } 60% { opacity: 1; } 100% { opacity: 1; } }
+
+  #loading {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 58vh;
+    text-align: center;
+    font-family: var(--mono);
+    letter-spacing: 0.2em;
+    color: var(--ink-soft);
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.35; } }
+
+  /* ---------- 아래: 겹쳐 쌓인 폴더 (사고실험 하나 = 폴더 하나) ---------- */
+  #drawer {
+    position: absolute;
+    left: 5vw;
+    right: 5vw;
+    bottom: 0;
+    height: var(--drawer-h, 58vh);
+  }
+  .folder {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 6px 6px 0 0;
+    box-shadow: 0 -2px 7px rgba(0, 0, 0, 0.13);
+    text-decoration: none;
+    color: var(--ink);
+    opacity: 0;
+    transform: translateY(40px);
+    transition: transform 0.25s ease, filter 0.25s ease;
+  }
+  .folder.show { animation: folderIn 0.7s ease forwards; }
+  @keyframes folderIn { to { opacity: 1; transform: none; } }
+  .folder:hover { transform: translateY(-10px) !important; filter: brightness(1.03); }
+  .folder .tab {
+    position: absolute;
+    top: 1px;
+    transform: translateY(-100%);
+    height: var(--tab-h, 40px);
+    box-sizing: border-box;
+    padding: 0 22px;
+    display: flex;
     align-items: center;
     gap: 14px;
-    margin-top: 30px;
-    font-family: serif;
+    border-radius: 11px 11px 0 0;
+    background: inherit;
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: clamp(12px, 1.15vw, 16px);
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    box-shadow: 0 -3px 5px rgba(0, 0, 0, 0.07);
   }
-  #expList a, #expList span.disabledItem {
-    color: beige;
-    text-decoration: none;
-    font-style: italic;
-    font-size: 14pt;
-    letter-spacing: 0.02em;
-    transition: opacity 0.2s ease;
+  .folder .tab .no { font-weight: 400; color: rgba(36, 34, 30, 0.6); }
+  .folder .tab .stamp {
+    font-size: 0.72em;
+    letter-spacing: 0.12em;
+    color: var(--red);
+    border: 1.5px solid var(--red);
+    border-radius: 2px;
+    padding: 0 5px;
+    transform: rotate(-5deg);
   }
-  #expList a:hover { opacity: 0.6; }
-  #expList span.disabledItem {
-    color: #6c6a63;
-    cursor: default;
-  }
-  /* 모든 사고실험을 클리어하면 목록 맨 밑에 열리는 [무한모드] */
-  #expList a.infiniteItem {
-    margin-top: 18px;
-    color: #f0c48a;
-  }
-  /* 방금 열렸을 때: 천천히 떠오르며 빛남 */
-  #expList a.infiniteItem.reveal { animation: infReveal 2.4s ease; }
-  @keyframes infReveal {
-    0% { opacity: 0; letter-spacing: 0.3em; text-shadow: 0 0 0 rgba(240, 196, 138, 0); }
-    60% { opacity: 1; text-shadow: 0 0 18px rgba(240, 196, 138, 0.8); }
-    100% { letter-spacing: 0.02em; text-shadow: 0 0 0 rgba(240, 196, 138, 0); }
-  }
+  .folder.disabled { cursor: default; filter: grayscale(0.6); }
+  .folder.disabled:hover { transform: none !important; }
 </style>
-<script>
-  setTimeout(() => {
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('expList').style.display = 'flex';
-  }, 2000);
-</script>
-
-
-
+</head>
 <body>
-  <h1 id="title">이상한 사고실험실</h1>
-  <div id="content">
-    <h1 class="subtitle">사고실험, 지식의 허영심을 드러내기에 좋은 요소.</h1>
-    <h1 class="subtitle">이걸 플레이한다면 당신도 조금은 알 수 있을 겁니다.</h1>
-    <span id="loading">불러오는 중 . . .</span>
-    <div id="expList"></div>
+  <div id="cover">
+    <div>
+      <div class="vol">LAB. REPORT FILE — VOL.01</div>
+      <h1 id="title">이상한 사고실험실</h1>
+    </div>
+    <div class="subtitles">
+      <h2 class="subtitle">사고실험, 지식의 허영심을 드러내기에 좋은 요소.</h2>
+      <h2 class="subtitle">이걸 플레이 하면 여러분도 조금은 가까워 질 수 있어요.</h2>
+      <div id="extras"></div>
+    </div>
   </div>
 
-  <!-- 사고실험 목록(THOUGHT_EXPERIMENTS)을 목차와 공유하기 위해 template.js를 불러옴 -->
+  <div id="loading">불러오는 중 . . .</div>
+  <div id="drawer"></div>
+
+  <!-- 사고실험 목록(THOUGHT_EXPERIMENTS)과 클리어 기록을 목차와 공유하기 위해 template.js를 불러옴 -->
   <script src="./template.js"></script>
   <script>
-    const expListEl = document.getElementById('expList');
-    THOUGHT_EXPERIMENTS.forEach((exp) => {
-      if (exp.href) {
-        const a = document.createElement('a');
-        a.href = exp.href;
-        a.textContent = exp.title;
-        expListEl.appendChild(a);
-      } else {
-        const span = document.createElement('span');
-        span.className = 'disabledItem';
-        span.textContent = exp.title;
-        expListEl.appendChild(span);
-      }
-    });
+    // 폴더 색 (뒤에서 앞으로): 회색 / 분홍 / 밝은 종이 / 하늘 / 버터 / 크라프트 / 살구 / 연살구
+    const FOLDER_COLORS = ['#d8d2c4', '#dcb0ad', '#f7f3ea', '#b7cddc', '#ece3a6', '#c9a07a', '#e2a487', '#e9c3a6'];
+    // 탭 위치 (폴더 폭의 %): 번갈아 엇갈리게
+    const TAB_X = [2, 46, 18, 58, 6, 40, 24, 62];
 
-    // 8개를 모두 클리어했으면 맨 밑에 [무한모드]
+    const drawer = document.getElementById('drawer');
+    const n = THOUGHT_EXPERIMENTS.length;
+    function layout() {
+      const H = window.innerHeight * 0.58;
+      const step = Math.min(64, H / (n + 1.2));
+      const tabH = Math.min(44, step - 4);
+      drawer.style.setProperty('--drawer-h', H + 'px');
+      drawer.style.setProperty('--tab-h', tabH + 'px');
+      [...drawer.children].forEach((el, i) => { el.style.height = (H - tabH - i * step) + 'px'; });
+    }
+    THOUGHT_EXPERIMENTS.forEach((exp, i) => {
+      const el = document.createElement(exp.href ? 'a' : 'div');
+      el.className = 'folder' + (exp.href ? '' : ' disabled');
+      if (exp.href) el.href = exp.href;
+      el.style.background = FOLDER_COLORS[i % FOLDER_COLORS.length];
+      el.style.zIndex = String(i + 1);
+      const name = (exp.title.split(': ').slice(1).join(': ') || exp.title).toUpperCase();
+      const tab = document.createElement('div');
+      tab.className = 'tab';
+      tab.style.left = TAB_X[i % TAB_X.length] + '%';
+      tab.innerHTML = `<span class="no">No.${String(exp.id).padStart(3, '0')}</span><span class="nm"></span>`;
+      tab.querySelector('.nm').textContent = name;
+      if (GameProgress.isCleared(exp.id)) tab.insertAdjacentHTML('beforeend', '<span class="stamp">CLEARED</span>');
+      el.appendChild(tab);
+      drawer.appendChild(el);
+    });
+    layout();
+    window.addEventListener('resize', layout);
+
+    // 잠깐 "불러오는 중" 뒤에 폴더가 아래에서부터 차례로 올라옴
+    setTimeout(() => {
+      document.getElementById('loading').style.display = 'none';
+      [...drawer.children].forEach((el, i) => {
+        el.style.animationDelay = (i * 0.07) + 's';
+        el.classList.add('show');
+      });
+    }, 2000);
+
+    // 8개를 모두 클리어했으면 표지 오른쪽에 [무한모드], [기록]
+    const extras = document.getElementById('extras');
     function addInfiniteItem(reveal) {
-      if (expListEl.querySelector('.infiniteItem')) return;
-      const a = document.createElement('a');
-      a.href = INFINITE_MODE.href;
-      a.textContent = INFINITE_MODE.title;
-      a.className = 'infiniteItem';
-      if (reveal) a.classList.add('reveal'); // 방금 열렸으면 떠오르는 연출
-      expListEl.appendChild(a);
+      if (extras.querySelector('a')) return;
+      [INFINITE_MODE, RECORDS_PAGE].forEach((page, i) => {
+        const a = document.createElement('a');
+        a.href = page.href;
+        a.textContent = page.title;
+        a.className = 'infiniteItem' + (i > 0 ? ' records recordsItem' : '');
+        if (reveal) a.classList.add('reveal'); // 방금 열렸으면 떠오르는 연출
+        extras.appendChild(a);
+      });
     }
     if (GameProgress.allCleared()) addInfiniteItem(GameProgress.consumeJustUnlocked());
     // 숨은 커맨드(← → ← → B)로 열렸을 때
-    window.addEventListener('tel-unlocked', () => addInfiniteItem(true));
+    window.addEventListener('tel-unlocked', () => {
+      addInfiniteItem(true);
+      drawer.querySelectorAll('.tab').forEach((t) => { if (!t.querySelector('.stamp')) t.insertAdjacentHTML('beforeend', '<span class="stamp">CLEARED</span>'); });
+    });
   </script>
 </body>
 </html>

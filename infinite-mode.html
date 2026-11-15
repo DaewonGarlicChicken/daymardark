@@ -5,76 +5,96 @@
 <title>Thought Experiment ∞ - Infinite Mode</title>
 <link rel="stylesheet" href="./template.css" />
 <style>
-  /* 이 페이지(무한모드)만의 스타일 - 공통 껍데기는 template.css에 있음 */
+  /* 이 페이지(무한모드)만의 스타일 - 책상 위 보고서 종이, 제목바, 목차는 template.css */
   canvas { display: block; opacity: 0; transition: opacity 0.8s ease; }
   body.started canvas { opacity: 1; }
-  #startScreen a { pointer-events: auto; color: #f0c48a; text-decoration: none; font-style: italic; }
-  #startScreen a:hover { opacity: 0.7; }
+  #startScreen a { pointer-events: auto; color: var(--red); text-decoration: none; }
+  #startScreen a:hover { text-decoration: underline; }
 
-  /* ---------- 왼쪽 위: 단계 / 목숨 ---------- */
+  /* ---------- 왼쪽 위: 단계 / 목숨 (테이프로 붙인 메모지) ---------- */
   #infHud {
     position: fixed;
-    top: 92px;
-    left: 24px;
+    top: calc(var(--sheet-top) + 86px);
+    left: calc(var(--sheet-left) + 62px);
     z-index: 7;
-    color: beige;
-    font-family: serif;
+    padding: 12px 18px 12px;
+    background: var(--butter);
+    color: var(--ink);
+    box-shadow: 2px 5px 12px rgba(0, 0, 0, 0.2);
+    transform: rotate(-1.4deg);
     opacity: 0;
     transition: opacity 0.6s ease;
     pointer-events: none;
   }
+  #infHud::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    width: 64px;
+    height: 20px;
+    margin-left: -32px;
+    background: rgba(247, 243, 230, 0.72);
+    transform: rotate(3deg);
+  }
   #infHud.show { opacity: 1; }
-  #infHud .ih-stage { font-size: 15px; font-style: italic; letter-spacing: 0.12em; color: rgba(245, 245, 220, 0.75); }
-  #infHud .ih-stage b { font-size: 26px; font-weight: normal; color: beige; letter-spacing: 0.04em; margin-left: 4px; font-variant-numeric: tabular-nums; }
-  #infHud .ih-lives { margin-top: 8px; }
+  #infHud .ih-stage { font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em; color: var(--ink-soft); }
+  #infHud .ih-stage b { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: 0.02em; margin-left: 6px; font-variant-numeric: tabular-nums; }
+  #infHud .ih-lives { margin-top: 6px; }
   #infHud .life { border-left-width: 9px; border-right-width: 9px; border-bottom-width: 15px; margin: 0 4px 0 0; }
 
-  /* 목숨 = 삼각형 */
+  /* 목숨 = 먹색 삼각형 */
   .life {
     display: inline-block;
     width: 0;
     height: 0;
     border-left: 16px solid transparent;
     border-right: 16px solid transparent;
-    border-bottom: 27px solid beige;
+    border-bottom: 27px solid var(--ink);
     margin: 0 8px;
     transition: border-bottom-color 0.3s ease;
   }
-  .life.lost { border-bottom-color: rgba(245, 245, 220, 0.14); }
+  .life.lost { border-bottom-color: rgba(36, 34, 30, 0.14); }
   .life.breaking { animation: lifeBreak 0.9s ease; }
   @keyframes lifeBreak {
-    0% { border-bottom-color: #e8a08a; transform: scale(1.35); }
+    0% { border-bottom-color: var(--red); transform: scale(1.35); }
     20% { transform: translateX(-5px) rotate(-12deg) scale(1.2); }
     40% { transform: translateX(5px) rotate(10deg); }
-    60% { transform: translateX(-3px) rotate(-6deg); border-bottom-color: #e8a08a; }
-    100% { border-bottom-color: rgba(245, 245, 220, 0.14); transform: none; }
+    60% { transform: translateX(-3px) rotate(-6deg); border-bottom-color: var(--red); }
+    100% { border-bottom-color: rgba(36, 34, 30, 0.14); transform: none; }
   }
 
-  /* ---------- 막간 화면: 단계 번호 / 목숨 / 다음 실험 (속도 UP 안내) ---------- */
+  /* ---------- 막간 화면: 새 보고서 한 장 (단계 번호 / 목숨 / 다음 실험) ---------- */
   #infInter {
     position: fixed;
-    inset: 0;
+    top: var(--sheet-top);
+    right: var(--sheet-right);
+    bottom: var(--sheet-bottom);
+    left: var(--sheet-left);
     z-index: 6;               /* 제목바(8)는 그대로 보임 */
-    background: #10131a;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(to right, transparent 71px, var(--margin-line) 71px, var(--margin-line) 72px, transparent 72px),
+      repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
+    background-position: 0 0, 0 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: beige;
-    font-family: serif;
+    color: var(--ink);
     text-align: center;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.22s ease;
   }
   #infInter.show { opacity: 1; }
-  #infInter .ii-label { font-size: 15px; letter-spacing: 0.5em; font-style: italic; color: rgba(245, 245, 220, 0.6); margin-left: 0.5em; }
-  #infInter .ii-stage { font-size: 110px; font-style: italic; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  #infInter .ii-label { font-family: var(--mono); font-size: 14px; letter-spacing: 0.5em; color: var(--ink-soft); margin-left: 0.5em; }
+  #infInter .ii-stage { font-family: var(--mono); font-weight: 700; font-size: 120px; line-height: 1.05; font-variant-numeric: tabular-nums; }
   #infInter.show .ii-stage { animation: stagePop 0.5s ease; }
   #infInter .ii-lives { margin: 18px 0 26px; }
-  #infInter .ii-next { font-size: 17px; font-style: italic; color: rgba(245, 245, 220, 0.8); }
-  #infInter .ii-next .in-num { color: rgba(245, 245, 220, 0.45); margin-right: 6px; }
-  #infInter .ii-speed { display: none; font-size: 64px; font-style: italic; color: #f0c48a; }
-  #infInter .ii-speed .is-sub { font-size: 20px; margin-top: 14px; color: beige; }
+  #infInter .ii-next { font-family: var(--mono); font-size: 17px; color: var(--ink); }
+  #infInter .ii-next .in-num { color: var(--ink-soft); margin-right: 8px; }
+  #infInter .ii-speed { display: none; font-family: var(--serif); font-weight: 700; font-size: 70px; color: var(--red); }
+  #infInter .ii-speed .is-sub { font-family: var(--mono); font-weight: 400; font-size: 20px; margin-top: 14px; color: var(--ink); }
   #infInter.speedOn .ii-main { display: none; }
   #infInter.speedOn .ii-speed { display: block; animation: speedPop 0.6s ease; }
   @keyframes stagePop { from { transform: scale(1.5); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -91,20 +111,19 @@
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 7;
-    color: beige;
-    font-family: serif;
+    color: var(--ink);
     text-align: center;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
     transition: top 0.3s ease, transform 0.3s ease, opacity 0.2s ease;
-    text-shadow: 0 2px 18px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 0 14px var(--paper), 0 0 6px var(--paper), 0 0 2px var(--paper);
   }
   #infCommand.show { opacity: 1; }
-  #infCommand .ic-word { font-size: 74px; font-style: italic; letter-spacing: 0.04em; }
+  #infCommand .ic-word { font-family: var(--serif); font-weight: 700; font-size: 78px; letter-spacing: -0.01em; }
   #infCommand.show:not(.top) .ic-word { animation: cmdPop 0.45s ease; }
-  #infCommand .ic-hint { margin-top: 10px; font-size: 17px; color: rgba(245, 245, 220, 0.8); transition: opacity 0.2s ease; }
-  #infCommand.top { top: 112px; transform: translate(-50%, -50%) scale(0.42); }
+  #infCommand .ic-hint { margin-top: 10px; font-family: var(--kmono); font-size: 17px; color: var(--ink-soft); transition: opacity 0.2s ease; }
+  #infCommand.top { top: calc(var(--sheet-top) + 108px); transform: translate(-50%, -50%) scale(0.42); }
   #infCommand.top .ic-hint { opacity: 0; }
   @keyframes cmdPop {
     0% { transform: scale(1.8) rotate(-4deg); opacity: 0; }
@@ -112,84 +131,88 @@
     100% { transform: none; }
   }
 
-  /* ---------- 성공 / 실패 ---------- */
+  /* ---------- 성공 / 실패: 도장처럼 쾅 ---------- */
   #infFlash {
     position: fixed;
     top: 46%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 7;
-    font-family: serif;
+    font-family: var(--serif);
+    font-weight: 700;
     font-size: 80px;
-    font-style: italic;
     pointer-events: none;
     opacity: 0;
-    text-shadow: 0 2px 22px rgba(0, 0, 0, 0.85);
+    text-shadow: 0 0 16px var(--paper), 0 0 6px var(--paper);
   }
   #infFlash.show { opacity: 1; animation: flashPop 0.5s ease; }
-  #infFlash .if-why { font-size: 20px; margin-top: 6px; text-align: center; color: rgba(245, 245, 220, 0.85); white-space: nowrap; }
-  #infFlash.win { color: #f0c48a; }
-  #infFlash.fail { color: #e8a08a; }
+  #infFlash .if-why { font-family: var(--kmono); font-weight: 700; font-size: 19px; margin-top: 6px; text-align: center; color: var(--ink); white-space: nowrap; }
+  #infFlash.win { color: var(--blue-ink); }
+  #infFlash.fail { color: var(--red); }
   @keyframes flashPop {
-    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
-    60% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+    0% { transform: translate(-50%, -50%) scale(0.4) rotate(-8deg); opacity: 0; }
+    60% { transform: translate(-50%, -50%) scale(1.15) rotate(2deg); opacity: 1; }
     100% { transform: translate(-50%, -50%) scale(1); }
   }
 
   /* ---------- 게임 오버 기록 ---------- */
-  .infOver .io-big { font-size: 22px; color: beige; }
-  .infOver .io-big b { font-size: 54px; font-weight: normal; font-style: italic; color: #f0c48a; margin-right: 6px; }
-  .infOver .io-sub { margin-top: 10px; color: rgba(245, 245, 220, 0.7); }
-  .infOver .io-new { color: #f0c48a; }
+  .infOver .io-big { font-size: 20px; color: var(--ink); }
+  .infOver .io-big b { font-family: var(--mono); font-size: 56px; font-weight: 700; color: var(--red); margin-right: 6px; }
+  .infOver .io-sub { margin-top: 10px; color: var(--ink-soft); }
+  .infOver .io-new { color: var(--red); font-weight: 700; }
+
   /* ---------- 미니게임 위의 글자 요소: 원래 페이지와 같은 모양 ---------- */
   #infLayer { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
   /* 중국어 방: 심사관 말풍선 */
   .infExaminer {
     position: fixed; display: flex; flex-direction: column; align-items: center; gap: 6px;
-    font-family: serif; color: beige; pointer-events: none;
+    color: var(--ink); pointer-events: none;
   }
-  .infExaminer .ex-name { font-style: italic; font-size: 14px; color: rgba(245, 245, 220, 0.7); }
+  .infExaminer .ex-name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.2em; color: var(--ink-soft); }
   .infExaminer .ex-bubble {
     position: relative; width: 140px; height: 124px;
-    border: 1px solid rgba(245, 245, 220, 0.55); border-radius: 18px; background: rgba(20, 22, 30, 0.85);
+    border: 1.5px solid var(--ink); border-radius: 14px; background: var(--paper-hi);
+    box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.15);
     display: flex; align-items: center; justify-content: center;
   }
   .infExaminer .ex-bubble::after {
     content: ''; position: absolute; bottom: -9px; left: calc(50% - 8px); width: 16px; height: 16px;
-    background: rgba(20, 22, 30, 0.95);
-    border-right: 1px solid rgba(245, 245, 220, 0.55); border-bottom: 1px solid rgba(245, 245, 220, 0.55);
+    background: var(--paper-hi);
+    border-right: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink);
     transform: rotate(45deg);
   }
   .infExaminer svg { width: 100px; height: 100px; display: block; }
-  .infExaminer .ex-text { font-size: 40px; font-style: italic; }
-  .infExaminer .ex-text.ok { color: #9fe0a8; font-size: 22px; }
-  .infExaminer .ex-bar { order: -1; width: 140px; height: 3px; background: rgba(245, 245, 220, 0.15); border-radius: 2px; overflow: hidden; }
-  .infExaminer .ex-bar > div { height: 100%; width: 0; background: beige; }
-  .infExaminer .ex-bar.warn > div { background: #f0c48a; }
+  .infExaminer polygon[fill="#f2efe2"] { fill: var(--ink); }
+  .infExaminer polygon[fill^="rgba"] { fill: rgba(36, 34, 30, 0.1); }
+  .infExaminer .ex-text { font-family: var(--hand); font-size: 48px; }
+  .infExaminer .ex-text.ok { color: var(--green); font-size: 30px; }
+  .infExaminer .ex-bar { order: -1; width: 140px; height: 3px; background: rgba(36, 34, 30, 0.14); border-radius: 2px; overflow: hidden; }
+  .infExaminer .ex-bar > div { height: 100%; width: 0; background: var(--ink); }
+  .infExaminer .ex-bar.warn > div { background: var(--red); }
   /* 트롤리 딜레마: 손 위 스톱워치 / 무리 아래 이름표 */
   .infStopwatch {
-    position: fixed; transform: translate(-50%, -100%); color: beige; font-family: serif; font-size: 30px;
+    position: fixed; transform: translate(-50%, -100%); color: var(--ink); font-family: var(--mono); font-weight: 700; font-size: 30px;
     letter-spacing: 0.06em; font-variant-numeric: tabular-nums; white-space: nowrap;
   }
   .infGroupLabel {
-    position: fixed; transform: translate(-50%, 0); color: beige; font-family: serif; font-size: 19px;
-    font-style: italic; white-space: nowrap; text-align: center; transition: color 0.2s ease;
+    position: fixed; transform: translate(-50%, 0); color: var(--ink); font-family: var(--kmono); font-size: 17px;
+    white-space: nowrap; text-align: center; transition: color 0.2s ease;
   }
-  .infGroupLabel .gl-sub { display: block; font-size: 13px; font-style: normal; color: rgba(245, 245, 220, 0.55); margin-top: 3px; }
-  .infGroupLabel.hover .gl-sub { color: #fff6d8; text-shadow: 0 0 12px rgba(255, 240, 200, 0.35); }
-  .infGroupLabel.saved .gl-sub { color: #9fe0a8; }
-  .infGroupLabel.lost .gl-sub { color: #e8a08a; }
+  .infGroupLabel .gl-sub { display: block; font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
+  .infGroupLabel.hover .gl-sub { color: var(--blue-ink); font-weight: 700; }
+  .infGroupLabel.saved .gl-sub { color: var(--green); font-weight: 700; }
+  .infGroupLabel.lost .gl-sub { color: var(--red); font-weight: 700; }
   /* 뷔리당의 당나귀: 건초 / 물 이름표 */
   .infSideLabel {
-    position: fixed; bottom: 52px; color: beige; font-family: serif; font-size: 20px; font-style: italic; opacity: 0.8;
+    position: fixed; bottom: calc(var(--sheet-bottom) + 40px); color: var(--ink); font-family: var(--kmono); font-weight: 700; font-size: 19px; opacity: 0.85;
     transition: color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
   }
-  .infSideLabel.left { left: 12vw; }
-  .infSideLabel.right { right: 12vw; }
-  .infSideLabel.hit { color: #fff6d8; transform: scale(1.12); opacity: 1; }
+  .infSideLabel.left { left: calc(var(--sheet-left) + 10vw); }
+  .infSideLabel.right { right: calc(var(--sheet-right) + 10vw); }
+  .infSideLabel.hit { color: var(--red); transform: scale(1.12); opacity: 1; }
   /* 양자 자살과 불멸: 살아남은 이유 */
   .infFigLabel {
-    position: fixed; transform: translate(-50%, -100%); color: beige; font-family: serif; font-size: 15px; white-space: nowrap;
+    position: fixed; transform: translate(-50%, -100%); color: var(--ink); font-family: var(--hand); font-size: 22px; white-space: nowrap;
   }
 </style>
 </head>
@@ -246,7 +269,11 @@
 <script src="./infinite-mode.js"></script>
 
 <script>
-  initPageTemplate({ title: 'Thought Experiment ∞ - Infinite Mode', activeId: INFINITE_MODE.id });
+  initPageTemplate({
+    title: 'Thought Experiment ∞ - Infinite Mode',
+    activeId: INFINITE_MODE.id,
+    header: { left: 'REPORT No.∞', center: 'Infinite Mode', right: 'APPENDIX' },
+  });
 
   // ---------- 기본 씬 세팅 ----------
   const scene = new THREE.Scene();
@@ -265,7 +292,7 @@
     const tanH = Math.tan((FOV * Math.PI / 180) / 2);
     const bar = document.getElementById('topBar');
     const fTop = bar ? (bar.getBoundingClientRect().bottom + 10) / window.innerHeight : 0.12;
-    const fBot = 14 / window.innerHeight;
+    const fBot = 30 / window.innerHeight; // 종이 아래 여백만큼
     const usable = 1 - fTop - fBot;
     const dist = Math.max(18 / (tanH * usable), 32.5 / (tanH * camera.aspect)) * 1.02;
     view.halfH = dist * tanH;

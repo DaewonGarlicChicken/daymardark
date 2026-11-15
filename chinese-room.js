@@ -64,12 +64,12 @@ const CR_LAYOUT = {
 };
 
 const CR_EYE_PART_COLORS = [
-  [0.80, 0.78, 0.74], // SCLERA
+  [0.52, 0.52, 0.53], // SCLERA (종이 위에서 보이도록 조금 회색)
   [0.55, 0.72, 0.85], // CORNEA
   [0.45, 0.32, 0.22], // IRIS
   [0.75, 0.85, 0.95], // LENS
   [0.70, 0.28, 0.25], // RETINA
-  [0.86, 0.80, 0.62], // NERVE
+  [0.50, 0.40, 0.26], // NERVE (크라프트색)
 ];
 
 let crRoot = null;
@@ -120,7 +120,9 @@ function crGeneratePatterns(n) {
   return out;
 }
 
-function crBuildTripodGeometry(pattern) {
+// 빈 칸이 종이 위에서 옅게 보이도록: 재질 색(base) x 꼭짓점 색 = 종이 쪽으로 옅어진 색
+const CR_PAPER = new THREE.Color(0xefe9dc);
+function crBuildTripodGeometry(pattern, base) {
   const s = CR_LAYOUT.tripodTriangleSize;
   const r1 = s / Math.sqrt(3);
   const offsets = crGenerateTripodOffsets(s);
@@ -133,11 +135,16 @@ function crBuildTripodGeometry(pattern) {
       [o.x - s / 2, o.y - dir * r1 / 2],
       [o.x + s / 2, o.y - dir * r1 / 2],
     ];
-    // 채워진 칸은 밝게(삼각형마다 살짝 다른 밝기), 빈 칸은 아주 희미하게 -> 모양이 드러남
-    const shade = pattern[i] ? 0.80 + Math.random() * 0.20 : 0.1;
+    // 채워진 칸은 진하게(삼각형마다 살짝 다른 밝기), 빈 칸은 종이색에 가깝게 옅게 -> 모양이 드러남
+    const shade = 0.80 + Math.random() * 0.20;
+    let c = [shade, shade, shade];
+    if (!pattern[i] && base) {
+      const t = base.clone().lerp(CR_PAPER, 0.8);
+      c = [t.r / Math.max(1e-3, base.r), t.g / Math.max(1e-3, base.g), t.b / Math.max(1e-3, base.b)];
+    } else if (!pattern[i]) c = [0.1, 0.1, 0.1];
     for (let k = 0; k < 3; k++) {
       positions.set([v[k][0], v[k][1], 0], i * 9 + k * 3);
-      colors.set([shade, shade, shade], i * 9 + k * 3);
+      colors.set(c, i * 9 + k * 3);
     }
   });
   const geom = new THREE.BufferGeometry();
@@ -152,9 +159,9 @@ function crBuildTripods() {
   const proxyGeom = new THREE.CircleGeometry(CR_LAYOUT.tripodTriangleSize * 2, 14); // 삼각형 사이 빈틈도 클릭되도록 하는 투명 판
 
   for (let i = 0; i < CR_LAYOUT.tripodCount; i++) {
-    const baseColor = new THREE.Color().setHSL(i / CR_LAYOUT.tripodCount, 0.85, 0.56);
+    const baseColor = new THREE.Color().setHSL(i / CR_LAYOUT.tripodCount, 0.85, 0.3); // 종이 위에서 또렷한 색
     const material = new THREE.MeshBasicMaterial({ color: baseColor.clone(), vertexColors: true, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(crBuildTripodGeometry(crPatterns[i]), material);
+    const mesh = new THREE.Mesh(crBuildTripodGeometry(crPatterns[i], baseColor), material);
 
     const proxy = new THREE.Mesh(proxyGeom, new THREE.MeshBasicMaterial({
       transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,

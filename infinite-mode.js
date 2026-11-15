@@ -48,7 +48,7 @@ const INF_CONFIG = {
 // 색: 원래 페이지들처럼 THREE.Color로 만든 값(재질 색과 같은 처리)을 꼭짓점 색으로 씀
 function infColor(hex) { const c = new THREE.Color(hex); return [c.r, c.g, c.b]; }
 function infRGB(c) { return [c.r, c.g, c.b]; }
-const INF_BG = [0, 0, 0];                 // 원래 페이지들의 게임 화면 바탕 (렌더러 기본 = 검정)
+const INF_BG = infColor(0xefe9dc);        // 게임 화면 바탕 = 보고서 종이 (사라지는 것은 종이색으로 녹아듦)
 const INF_BEIGE = infColor(0xf5f5dc);
 const INF_GOLD = infColor(0xffd452);
 const INF_RED = infColor(0xf2422f);
@@ -668,7 +668,7 @@ INF_ASSET_BUILDERS.bbBrain = function () {
       P[i * 9 + v * 3] = loc[v * 3] + p.x; P[i * 9 + v * 3 + 1] = loc[v * 3 + 1] + p.y; P[i * 9 + v * 3 + 2] = loc[v * 3 + 2] + p.z;
     }
     const col = pal[p.g % pal.length];
-    for (let ch = 0; ch < 3; ch++) C[i * 3 + ch] = col[ch] * cfg.ambientOpacity; // 반투명(0.85) = 검은 바탕과 섞임
+    for (let ch = 0; ch < 3; ch++) C[i * 3 + ch] = col[ch] * cfg.ambientOpacity + INF_BG[ch] * (1 - cfg.ambientOpacity); // 반투명(0.85) = 종이와 섞임
   });
   return { n, P, C, shape: bbBuildBrainShape() };
 };
@@ -761,7 +761,7 @@ class InfBoltzmann extends InfGame {
       const k = (t - s.born) / s.life;
       const op = (k < 0.15 ? k / 0.15 : k > 0.85 ? (1 - k) / 0.15 : 1) * endK;
       if (op <= 0.01) return;
-      const col = infScale(this.white, op);
+      const col = infFade(this.white, op);
       const cs = Math.cos(s.rot), sn = Math.sin(s.rot);
       s.unit.offsets.forEach((off) => {
         const cx = s.x + off.dx * cs - off.dy * sn, cy = s.y + off.dx * sn + off.dy * cs;
@@ -888,7 +888,7 @@ class InfChinese extends InfGame {
     this.offs = crGenerateTripodOffsets(this.s);
     this.opts = p.options.map((m, i) => ({
       mask: m,
-      color: infRGB(new THREE.Color().setHSL(i / L.tripodCount, 0.85, 0.56)), // 원래 6색
+      color: infRGB(new THREE.Color().setHSL(i / L.tripodCount, 0.85, 0.3)), // 원래 6색 (종이 위에서 또렷하게)
       shade: Array.from({ length: 12 }, (_, k) => ((m >> k) & 1 ? 0.8 + Math.random() * 0.2 : 0.1)),
       x: L.columnX, y: ((p.N - 1) / 2 - i) * L.columnSpacing, hoverS: 1,
     }));
@@ -998,13 +998,13 @@ class InfChinese extends InfGame {
       if (this.result === 'fail' && i === p.answer) s *= 1.05 + 0.08 * Math.sin(t * 12); // 정답 알려 줌
       const k = s > 1.001 ? (s - 1) / 0.18 * 0.35 : 0;
       const base = infMix(o.color, [1, 1, 1], k);
-      this.tripod(b, o.x, o.y, 0, s, 0, (j) => infScale(base, o.shade[j]));
+      this.tripod(b, o.x, o.y, 0, s, 0, (j) => ((o.mask >> j) & 1 ? infScale(base, o.shade[j]) : infMix(base, INF_BG, 0.8)));
     });
     if (this.fly && !this.parts) {
       const o = this.opts[this.picked];
       const e = infEaseInOut((t - this.fly.t0) / 0.45);
       const q = this.flyPos(e);
-      this.tripod(b, q[0], q[1], q[2], this.fly.s * (1 + 0.25 * Math.sin(e * Math.PI)), e * Math.PI * 2, (j) => infScale(o.color, o.shade[j]));
+      this.tripod(b, q[0], q[1], q[2], this.fly.s * (1 + 0.25 * Math.sin(e * Math.PI)), e * Math.PI * 2, (j) => ((o.mask >> j) & 1 ? infScale(o.color, o.shade[j]) : infMix(o.color, INF_BG, 0.8)));
     }
     if (this.parts) {
       const o = this.opts[this.picked], r1 = this.s / Math.sqrt(3), half = this.s / 2, rot = new Float32Array(9);
@@ -1745,7 +1745,7 @@ INF_ASSET_BUILDERS.qsFig = function () {
     for (let k = 0; k < 3; k++) centers[i * 3 + k] = (tq.p[0][k] + tq.p[1][k] + tq.p[2][k]) / 3;
     const d = (tq.n[0] * L[0] + tq.n[1] * L[1] + tq.n[2] * L[2]) / ll;
     const sh = 0.5 + 0.5 * (0.5 + 0.5 * d);
-    colors.set([0.93 * sh, 0.91 * sh, 0.86 * sh], i * 3);
+    colors.set([0.13 * sh, 0.12 * sh, 0.105 * sh], i * 3); // '나': 먹색
   });
   return { n, rest, centers, colors };
 };
@@ -1909,7 +1909,7 @@ class InfQuantum extends InfGame {
       }
       ro *= born;
       if (ro > 0.01) {
-        const s = 1.5 * rs, rr = s / Math.sqrt(3), cxr = f.x + this.redX, cyr = f.y + 1.7, c = infScale(rc, ro);
+        const s = 1.5 * rs, rr = s / Math.sqrt(3), cxr = f.x + this.redX, cyr = f.y + 1.7, c = infFade(rc, ro);
         V.tri(b, cxr, cyr + rr, 0, cxr - s / 2, cyr - rr / 2, 0, cxr + s / 2, cyr - rr / 2, 0, c);
       }
     };
@@ -1925,7 +1925,7 @@ class InfQuantum extends InfGame {
         const age = t - this.litTimes[i];
         k = 1.15 + 0.6 * Math.max(0, 1 - age / 0.5);
         const g = Math.max(0, 1 - age / 0.8);
-        c = [1, 0.86 + 0.14 * g, 0.45 + 0.55 * g];
+        c = [0.78, 0.25 + 0.3 * g, 0.04 + 0.3 * g];
       }
       V.tri(b, x, by + r * k, 0, x - s / 2 * k, by - r / 2 * k, 0, x + s / 2 * k, by - r / 2 * k, 0, c);
     }
@@ -2024,7 +2024,7 @@ INF_ASSET_BUILDERS.mxBrain = function () {
       const a = a0 + k * 2.0944;
       for (let ch = 0; ch < 3; ch++) P[i * 9 + k * 3 + ch] = c[ch] + (e1[ch] * Math.cos(a) + e2[ch] * Math.sin(a)) * r;
     }
-    for (let ch = 0; ch < 3; ch++) Cc[i * 3 + ch] = MX_COLORS.shell[ch] * sh * 0.55; // 반투명(0.55)
+    for (let ch = 0; ch < 3; ch++) Cc[i * 3 + ch] = MX_COLORS.shell[ch] * sh * 0.55 + INF_BG[ch] * 0.45; // 반투명(0.55)
   });
   const cand = [];
   for (let x = mn[0]; x <= mxv[0]; x += 3.2) for (let y = mn[1]; y <= mxv[1]; y += 3.2) for (let z = mn[2]; z <= mxv[2]; z += 3.2) if (bbBrainField(x, y, z) < 0.62) cand.push([x, y, z]);
@@ -2202,10 +2202,10 @@ class InfMaxwell extends InfGame {
     // ----- 방 모서리 / 칸막이(아주 옅게) / 문 -----
     const edge = COL.edge;
     V.mesh(b, room.edge, room.nEdge, null, () => edge);
-    const part = infScale(COL.partition, 0.06);
+    const part = infFade(COL.partition, 0.06);
     V.mesh(b, room.part, room.nPart, null, () => part);
     const h = C.holeHalf, fl = Math.max(0, 1 - (t - this.door.flash) / 0.35);
-    const dc = infScale([COL.partition[0] + (1 - COL.partition[0]) * fl, COL.partition[1] * (1 - fl * 0.6), COL.partition[2] * (1 - fl * 0.6)], 0.3 + fl * 0.45);
+    const dc = infScale([COL.partition[0] + (1 - COL.partition[0]) * fl, COL.partition[1] * (1 - fl * 0.6), COL.partition[2] * (1 - fl * 0.6)], 0.3 + fl * 0.45).map((v, ch) => v + INF_BG[ch] * (0.7 - fl * 0.45));
     const dy = this.door.open * h * 0.9, sy = Math.max(0.0001, 1 - this.door.open * 0.9);
     V.tri(b, 0, dy - h * sy, -h, 0, dy + h * sy, -h, 0, dy + h * sy, h, dc);
     V.tri(b, 0, dy - h * sy, -h, 0, dy + h * sy, h, 0, dy - h * sy, h, dc);
@@ -2241,7 +2241,7 @@ class InfMaxwell extends InfGame {
     if (ba > 0 && this.beam.mol) {
       const s0 = V.screen(0, this.brainY - B.bottomExtent * 0.7, 0), s1 = this.molScreen(this.beam.mol);
       const dx = s1[0] - s0[0], dy2 = s1[1] - s0[1], l = Math.hypot(dx, dy2) || 1, nx = -dy2 / l * 0.06, ny = dx / l * 0.06;
-      const c = infScale(infColor(0xfff1b0), ba);
+      const c = infFade(infColor(0xb5523f), ba);
       b.tri3(s0[0] + nx, s0[1] + ny, 0, s1[0] + nx, s1[1] + ny, 0, s1[0] - nx, s1[1] - ny, 0, c, c, c);
       b.tri3(s0[0] + nx, s0[1] + ny, 0, s1[0] - nx, s1[1] - ny, 0, s0[0] - nx, s0[1] - ny, 0, c, c, c);
     }
@@ -2493,7 +2493,7 @@ const InfiniteMode = (function () {
   }
 
   // 제한시간 도화선: 맨 아래 줄 삼각형이 오른쪽부터 타들어감
-  const FUSE = { base: infColor(0xdbd6c2), warn: infColor(0xf28c66), warnHi: infColor(0xffcc99), spark1: infColor(0xffd959), spark2: infColor(0xff8033) };
+  const FUSE = { base: infColor(0x3a3732), warn: infColor(0xb5523f), warnHi: infColor(0xe2a487), spark1: infColor(0xc77d12), spark2: infColor(0xb5523f) }; // 도화선: 먹색, 끝은 붉게
   function drawFuse(frac, visible) {
     const b = fuse, n = 56;
     b.begin();

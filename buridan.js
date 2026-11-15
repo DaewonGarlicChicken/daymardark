@@ -49,10 +49,10 @@ const BD_LAYOUT = {
 };
 
 const BD_COLORS = {
-  donkey: [0.62, 0.57, 0.52],
+  donkey: [0.22, 0.18, 0.15],   // 종이 위에서 보이는 회갈색
   hay: 0xd8b45a,
   water: 0x4a9be8,
-  trail: [0.85, 0.82, 0.72],
+  trail: [0.16, 0.15, 0.12],    // 걸은 길 (연필 회색)
 };
 
 let bdRoot = null;

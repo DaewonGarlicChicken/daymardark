@@ -653,9 +653,9 @@ const GALLEY_SEA_CONFIG = {
   sailSpeed: 16,        // 항해 중 물결이 뒤로 흐르는 속도 (x 오프셋 증가량/초)
   driftSpeed: 3,        // 배가 들어오거나 나갈 때(배 자체가 움직임)
 
-  deepColor: 0x163150,
-  crestColor: 0x7fa6c4,
-  bgColor: 0x10131a,    // 페이지 배경색 (멀리/가장자리에서 이 색으로 녹아듦)
+  deepColor: 0x4f7390,   // 종이 위 바다: 탁한 남청
+  crestColor: 0xb7cddc,  // 물마루: 옅은 하늘색
+  bgColor: 0xefe9dc,    // 종이 색 (멀리/가장자리에서 이 색으로 녹아듦)
 };
 
 let galleySea = null;       // THREE.Mesh

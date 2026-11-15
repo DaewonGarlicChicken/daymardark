@@ -42,19 +42,19 @@ const MX_CONFIG = {
   molecules: 70,
   molEdge: 0.85,                      // 삼각뿔 한 변 (방이 작아져서 함께 줄임)
   slowSpeed: 2.4,                     // 파랑
-  fastSpeed: 6.5,                     // 빨강
+  fastSpeed: 7.5,                     // 빨강
   brain: {
     scale: 0.115,                     // 볼츠만 두뇌 모양을 이 비율로 줄임 (가로 약 8.5)
     shellCount: 650,                  // 뇌 겉면 삼각형 수
     shellTriSize: 0.3,
-    cells: 20,                        // 기억 칸 수
+    cells: 15,                        // 기억 칸 수
     cellEdge: 0.6,                    // 기억 칸(작은 삼각뿔) 한 변
     topMargin: 1.0,                   // 제목바 선과의 여유
     gap: 1.2,                         // 방 윗면과 뇌 사이 간격
     sway: 0.35,                       // 입체가 드러나도록 천천히 좌우로 도는 폭(라디안)
   },
-  initialWrong: 20,                   // 시작할 때 잘못된 방에 있는 분자 수 (빨강 15 왼쪽 + 파랑 15 오른쪽)
-  remixRatio: 2.0,                    // 기억을 내보내면 (내보낸 개수 / 1.5)만큼 다시 섞임
+  initialWrong: 30,                   // 시작할 때 잘못된 방에 있는 분자 수 (빨강 15 왼쪽 + 파랑 15 오른쪽)
+  remixRatio: 1.5,                    // 기억을 내보내면 (내보낸 개수 / 1.5)만큼 다시 섞임
   approach: 0.45,                     // 낚은 분자를 구멍 앞으로 데려오는 시간
   passTime: 0.3,                      // 구멍을 통과하는 시간
   pickRadiusPx: 26,                   // 클릭 판정 반경(화면 픽셀)
@@ -67,11 +67,11 @@ const MX_CONFIG = {
 const MX_COLORS = {
   blue: [0.25, 0.52, 1.0],
   red: [1.0, 0.26, 0.2],
-  edge: [0.85, 0.83, 0.76],
-  partition: [0.85, 0.83, 0.75],
-  shell: [0.62, 0.62, 0.66],
-  white: [0.93, 0.93, 0.9],
-  yellow: [1.0, 0.84, 0.25],
+  edge: [0.03, 0.028, 0.025],     // 방 모서리: 먹색
+  partition: [0.05, 0.045, 0.04], // 칸막이/문: 먹색 (반투명)
+  shell: [0.12, 0.12, 0.14],      // 뇌 겉면: 짙은 회색 (반투명)
+  white: [0.2, 0.19, 0.17],       // 빈 기억 칸: 연필 회색
+  yellow: [0.78, 0.42, 0.03],     // 찬 기억 칸: 호박색
 };
 
 let mxRoot = null;
@@ -222,7 +222,7 @@ function mxBuildRoom() {
   const bpos = new THREE.BufferAttribute(new Float32Array(6), 3);
   bpos.setUsage(THREE.DynamicDrawUsage);
   bg.setAttribute('position', bpos);
-  const beamMat = new THREE.LineBasicMaterial({ color: 0xfff1b0, transparent: true, opacity: 0 });
+  const beamMat = new THREE.LineBasicMaterial({ color: 0xb5523f, transparent: true, opacity: 0 }); // 관찰 선: 붉은 잉크
   mxRoot.add(new THREE.LineSegments(bg, beamMat));
   mxBeam = { pos: bpos, mat: beamMat, start: -100 };
 }
