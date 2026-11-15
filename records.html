@@ -9,7 +9,7 @@
   #recWrap {
     position: fixed;
     top: calc(var(--sheet-top) + 84px);
-    left: calc(var(--sheet-left) + 70px);
+    left: calc(var(--sheet-left) + 72px);
     right: calc(var(--sheet-right) + 26px);
     bottom: var(--sheet-bottom);
     z-index: 3;
@@ -19,7 +19,7 @@
     color: var(--ink);
     word-break: keep-all;
   }
-  .rec-inner { width: min(1120px, 100%); margin: 0 auto; }
+  .rec-inner { width: 100%; }
 
   /* 맨 위: 전체 합계 (타자기로 친 한 줄) */
   #recTotal {
@@ -137,7 +137,7 @@
   // =========================================================
   // 마지막 문구: 여기에 원하는 문구를 적으면 됨 (줄바꿈은 <br>)
   // =========================================================
-  const CLOSING_TEXT = '잘 이해할 수 있는 시간이 되었길 바래요.';
+  const CLOSING_TEXT = '(여기에 마지막 문구가 들어갑니다)';
 
   initPageTemplate({
     title: 'Thought Experiment - Records',

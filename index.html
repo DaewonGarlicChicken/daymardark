@@ -51,8 +51,8 @@
   #cover {
     position: absolute;
     top: 7vh;
-    left: 7vw;
-    right: 7vw;
+    left: 6vw;
+    right: 6vw;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -115,9 +115,9 @@
   /* ---------- 아래: 겹쳐 쌓인 폴더 (사고실험 하나 = 폴더 하나) ---------- */
   #drawer {
     position: absolute;
-    left: 5vw;
-    right: 5vw;
-    bottom: 0;
+    left: 6vw;
+    right: 6vw;
+    bottom: -60px;   /* 폴더 아랫부분은 화면 밖으로: 올라와도 밑이 비지 않게 */
     height: var(--drawer-h, 58vh);
   }
   .folder {
@@ -131,13 +131,17 @@
     color: var(--ink);
     opacity: 0;
     transform: translateY(40px);
-    transition: transform 0.25s ease, filter 0.25s ease;
+    transition: transform 0.5s cubic-bezier(0.22, 0.9, 0.3, 1), filter 0.3s ease, box-shadow 0.4s ease;
   }
+  /* 올라오는 애니메이션이 끝난 뒤에는 hover 움직임이 부드럽게 이어지도록 애니메이션을 떼어냄 */
+  .folder.ready { opacity: 1; transform: none; animation: none; }
   .folder.show { animation: folderIn 0.7s ease forwards; }
   @keyframes folderIn { to { opacity: 1; transform: none; } }
-  .folder:hover { transform: translateY(-10px) !important; filter: brightness(1.03); }
+  .folder.ready:hover { transform: translateY(-16px); filter: brightness(1.04); box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.18); }
+  .folder:hover .tab { box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.12); }
   .folder .tab {
     position: absolute;
+    z-index: 2;   /* 서류보다 앞 */
     top: 1px;
     transform: translateY(-100%);
     height: var(--tab-h, 40px);
@@ -167,6 +171,65 @@
   }
   .folder.disabled { cursor: default; filter: grayscale(0.6); }
   .folder.disabled:hover { transform: none !important; }
+
+  /* ---------- 폴더 안의 서류 더미: 커서를 올리면 폴더와 함께 한 장씩 밀려 올라옴 ---------- */
+  .folder .docs {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    bottom: 100%;              /* 폴더 윗변에서 잘려서, 폴더 속에서 나오는 것처럼 보임 */
+    height: calc(var(--step, 64px) * 1.15);
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .folder .sheet {
+    position: absolute;
+    bottom: 0;
+    height: calc(var(--step, 64px) * 1.05);
+    box-sizing: border-box;
+    background-color: #faf7f0;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 13px, rgba(120, 108, 86, 0.16) 13px, rgba(120, 108, 86, 0.16) 14px);
+    background-position: 0 30px;
+    box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.12);
+    transform: translateY(calc(100% + 14px)) rotate(0deg);   /* 클립까지 완전히 숨김 */
+    transition: transform 0.55s cubic-bezier(0.22, 0.9, 0.3, 1);
+  }
+  /* 세 장: 맨 뒤 → 맨 앞. 폭·기울기·올라오는 높이를 조금씩 다르게 */
+  .folder .sheet.s1 { left: 6%;  right: 9%;  background-color: #f1ece1; transition-delay: 0s; }
+  .folder .sheet.s2 { left: 10%; right: 5%;  background-color: #f6f2e9; transition-delay: 0.05s; }
+  .folder .sheet.s3 { left: 4%;  right: 12%; transition-delay: 0.1s; padding: 9px 16px 0; }
+  .folder.ready:hover .sheet.s1 { transform: translateY(calc(var(--step, 64px) * 0.12)) rotate(-0.8deg); transition-delay: 0.08s; }
+  .folder.ready:hover .sheet.s2 { transform: translateY(calc(var(--step, 64px) * 0.27)) rotate(0.6deg); transition-delay: 0.04s; }
+  .folder.ready:hover .sheet.s3 { transform: translateY(calc(var(--step, 64px) * 0.44)) rotate(-0.3deg); transition-delay: 0s; }
+  /* 맨 앞 장: 타자기로 친 머리글 + 클립 */
+  .folder .sheet .sh-head {
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .folder .sheet .sh-head b { color: var(--ink); letter-spacing: 0.08em; }
+  /* 탭이 왼쪽에 있는 폴더는 머리글을 오른쪽에, 클립은 왼쪽에 (탭에 가리지 않게) */
+  .folder.tab-left .sheet .sh-head { justify-content: flex-end; }
+  .folder.tab-left .sheet .sh-clip { right: auto; left: 22%; transform: rotate(-6deg); }
+  .folder .sheet .sh-clip {
+    position: absolute;
+    top: -8px;
+    right: 18%;
+    width: 12px;
+    height: 34px;
+    border: 2px solid #9a978f;
+    border-radius: 8px;
+    transform: rotate(6deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .folder, .folder .sheet { transition-duration: 0.01s; }
+  }
 </style>
 </head>
 <body>
@@ -177,7 +240,7 @@
     </div>
     <div class="subtitles">
       <h2 class="subtitle">사고실험, 지식의 허영심을 드러내기에 좋은 요소.</h2>
-      <h2 class="subtitle">이걸 플레이 하면 여러분도 조금은 가까워 질 수 있어요.</h2>
+      <h2 class="subtitle">이미지의 이해, 구상, 발현, 개시.</h2>
       <div id="extras"></div>
     </div>
   </div>
@@ -196,11 +259,14 @@
     const drawer = document.getElementById('drawer');
     const n = THOUGHT_EXPERIMENTS.length;
     function layout() {
-      const H = window.innerHeight * 0.58;
-      const step = Math.min(64, H / (n + 1.2));
+      // 표지 아래 남는 공간을 폴더 더미가 채우도록 (화면 밖으로 숨는 60px 포함)
+      const coverBottom = document.getElementById('cover').getBoundingClientRect().bottom;
+      const H = Math.max(window.innerHeight * 0.5, window.innerHeight - coverBottom - 56) + 60;
+      const step = Math.min(70, (H - 60) / (n + 1.0));
       const tabH = Math.min(44, step - 4);
       drawer.style.setProperty('--drawer-h', H + 'px');
       drawer.style.setProperty('--tab-h', tabH + 'px');
+      drawer.style.setProperty('--step', step + 'px');
       [...drawer.children].forEach((el, i) => { el.style.height = (H - tabH - i * step) + 'px'; });
     }
     THOUGHT_EXPERIMENTS.forEach((exp, i) => {
@@ -213,14 +279,23 @@
       const tab = document.createElement('div');
       tab.className = 'tab';
       tab.style.left = TAB_X[i % TAB_X.length] + '%';
+      if (TAB_X[i % TAB_X.length] < 30) el.classList.add('tab-left');
       tab.innerHTML = `<span class="no">No.${String(exp.id).padStart(3, '0')}</span><span class="nm"></span>`;
       tab.querySelector('.nm').textContent = name;
       if (GameProgress.isCleared(exp.id)) tab.insertAdjacentHTML('beforeend', '<span class="stamp">CLEARED</span>');
       el.appendChild(tab);
+      // 폴더 속 서류 세 장 (맨 앞 장에는 보고서 머리글과 클립)
+      const docs = document.createElement('div');
+      docs.className = 'docs';
+      docs.innerHTML = '<div class="sheet s1"></div><div class="sheet s2"></div>'
+        + `<div class="sheet s3"><span class="sh-clip"></span><div class="sh-head"><span>REPORT No.${String(exp.id).padStart(3, '0')}</span><b></b></div></div>`;
+      docs.querySelector('.sh-head b').textContent = name;
+      el.appendChild(docs);
       drawer.appendChild(el);
     });
     layout();
     window.addEventListener('resize', layout);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
 
     // 잠깐 "불러오는 중" 뒤에 폴더가 아래에서부터 차례로 올라옴
     setTimeout(() => {
@@ -228,6 +303,7 @@
       [...drawer.children].forEach((el, i) => {
         el.style.animationDelay = (i * 0.07) + 's';
         el.classList.add('show');
+        el.addEventListener('animationend', () => { el.classList.remove('show'); el.classList.add('ready'); }, { once: true });
       });
     }, 2000);
 

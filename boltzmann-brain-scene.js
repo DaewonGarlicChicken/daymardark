@@ -41,7 +41,7 @@ const BB_SCENE_CONFIG = {
   ambientMaxCount: 14000,
   ambientOpacity: 0.85,
   // 색상 그룹별 색: [0]=피질 껍질, [1]=잔 섬유, [2~6]=신경 다발별 색
-  ambientPalette: [0x2a5aa0, 0x3b4d6b, 0x4c8dff, 0x2fc4d8, 0x7a6bff, 0x3fd1a0, 0xd06ad0],
+  ambientPalette: [0x2a5aa0, 0x3b4d6b, 0x4f7390, 0x2f8a99, 0x6a5fb8, 0x3f8f72, 0xb0559f], // 종이 위에서 보이는 탁한 잉크색들
 
   fractalTriangleSize: 0.5,
 
@@ -57,18 +57,18 @@ const BB_SCENE_CONFIG = {
   tier3Threshold: 6,
   minDisplayLifetime: 0.6,
   lifetimeDisplayScale: 3,
-  normalStructColor: 0xeaeaea,
+  normalStructColor: 0x24221e, // 요동: 먹색
 
   // 뇌가 조립되는 사건
-  brainFirstMin: 5,           // 진공이 다 생긴 뒤 첫 뇌까지 (초, 무작위 범위)
+  brainFirstMin: 6,           // 진공이 다 생긴 뒤 첫 뇌까지 (초, 무작위 범위)
   brainFirstMax: 14,
-  brainNextMin: 2,            // 놓친 뒤 다음 뇌까지
-  brainNextMax: 8,
-  brainVisible: 0.40,          // 뇌가 순식간에 나타나 머무는 시간 (그 뒤 순식간에 사라짐)
+  brainNextMin: 7,            // 놓친 뒤 다음 뇌까지
+  brainNextMax: 14,
+  brainVisible: 1.1,          // 뇌가 순식간에 나타나 머무는 시간 (그 뒤 순식간에 사라짐)
   brainWidth: 8,             // 작은 뇌의 가로 길이 (world)
   brainTriCount: 110,
   brainTriSize: 0.45,
-  brainColor: 0xffd27a,
+  brainColor: 0xc77d12, // 금색 뇌 (종이 위에서 보이도록 진한 호박색)
   pickRadiusPx: 30,           // 클릭 판정 최소 반경(화면 픽셀)
   missCooldown: 1.2,          // 뇌가 아닌 곳을 누르면 이 시간 동안 관측이 흐트러져 클릭이 먹히지 않음
 
